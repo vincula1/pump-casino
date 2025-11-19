@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { LeaderboardEntry, User } from '../types';
+import { storageService } from '../services/storageService';
 
 const NAMES = ["Satoshi", "Whale_01", "LuckyStrike", "AceHigh", "Baron", "CryptoKing", "MoonLander", "DiamondHands", "HODLer", "BagHolder", "WAGMI_Boy", "PumpIt", "RocketMan", "AlphaWolf", "BetaTester", "GammaRay", "DeltaForce", "OmegaZero", "ZenMaster", "KarmaChameleon"];
 
@@ -11,21 +12,28 @@ interface LeaderboardProps {
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, currentUser }) => {
   const [data, setData] = useState<LeaderboardEntry[]>([]);
-  
-  // We maintain a static set of bots so they don't completely regenerate on every render
-  // allowing the user to climb past them.
   const [bots, setBots] = useState<LeaderboardEntry[]>([]);
 
+  // Initial Load
   useEffect(() => {
-    // Generate initial bots only once
-    const initialBots = Array.from({ length: 50 }, (_, i) => ({
-      username: NAMES[i % NAMES.length] + (i > 19 ? `_${i}` : ''),
-      winnings: Math.floor(Math.random() * 50000) + 1000 + (50 - i) * 2000,
-      rank: 0
-    }));
-    setBots(initialBots);
+    // Try to load persisted leaderboard from storage
+    const storedBots = storageService.getLeaderboard();
+
+    if (storedBots && storedBots.length > 0) {
+        setBots(storedBots);
+    } else {
+        // Generate fresh bots if no history exists
+        const initialBots = Array.from({ length: 20 }, (_, i) => ({
+            username: NAMES[i % NAMES.length] + (i > 19 ? `_${i}` : ''),
+            winnings: Math.floor(Math.random() * 50000) + 10000 + (20 - i) * 3000,
+            rank: 0
+        }));
+        setBots(initialBots);
+        storageService.saveLeaderboard(initialBots);
+    }
   }, []);
 
+  // Update rankings and simulate bot activity
   useEffect(() => {
     if (bots.length === 0) return;
 
@@ -56,21 +64,24 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
 
     updateRanking();
 
-    // Simulate movement of OTHER players
+    // Simulate movement of OTHER players to feel "real" but keep them persistent
     const interval = setInterval(() => {
       setBots(currentBots => {
         const newBots = [...currentBots];
         // Update a few random bots
         for(let i=0; i<3; i++) {
              const randomIndex = Math.floor(Math.random() * newBots.length);
-             // Bots mostly win, sometimes lose
-             newBots[randomIndex].winnings += Math.floor(Math.random() * 2000) - 500; 
+             // Bots can win or lose, but generally trend upwards to be competitive
+             const change = Math.floor(Math.random() * 4000) - 1000;
+             newBots[randomIndex].winnings = Math.max(0, newBots[randomIndex].winnings + change);
         }
+        // Save the updated bot state so it persists across reloads
+        storageService.saveLeaderboard(newBots);
         return newBots;
       });
-    }, 3000);
+    }, 5000);
 
-    // Re-run ranking when bots change OR when user balance changes
+    return () => clearInterval(interval);
   }, [bots, currentUser]); 
 
   return (
@@ -82,7 +93,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
           </div>
           <span className="text-xs text-emerald-500 uppercase font-bold tracking-wider flex items-center gap-1">
             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-            Active
+            Real-time
           </span>
       </div>
       

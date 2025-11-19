@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { GameCard } from './components/ui/Card';
@@ -27,27 +28,45 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initialize Member Counts (Simulated Real-time activity)
+  // Initialize Member Counts (Realistic Simulation based on Time of Day)
   useEffect(() => {
-    const initialCounts: Record<string, number> = {};
-    Object.keys(GAME_CONFIGS).forEach(key => {
-      initialCounts[key] = Math.floor(Math.random() * 800) + 120;
-    });
-    setPlayerCounts(initialCounts);
+    // Function to generate a "realistic" number based on UTC hour (Sine wave pattern)
+    const getBaseCount = () => {
+        const date = new Date();
+        const hour = date.getUTCHours();
+        // Peak at 20:00 UTC, Low at 08:00 UTC
+        const offset = 1200; // Base users
+        const amplitude = 800; // Variance
+        const period = (hour - 8) / 24 * 2 * Math.PI; 
+        return Math.floor(offset + amplitude * Math.sin(period));
+    };
 
-    const interval = setInterval(() => {
-      setPlayerCounts(prev => {
-        const next = { ...prev };
-        const keys = Object.keys(next);
-        for(let i=0; i<2; i++) {
-            const key = keys[Math.floor(Math.random() * keys.length)];
-            const change = Math.floor(Math.random() * 11) - 5;
-            next[key] = Math.max(50, next[key] + change);
-        }
-        return next;
-      });
-    }, 3000);
+    const updateCounts = () => {
+        const base = getBaseCount();
+        const noise = Math.floor(Math.random() * 50) - 25; // Small flutter
+        const total = base + noise;
 
+        // Distribute players across games somewhat consistently
+        const distribution = {
+            [GameType.BLACKJACK]: 0.25,
+            [GameType.SLOTS]: 0.20,
+            [GameType.CRASH]: 0.15,
+            [GameType.ROULETTE]: 0.15,
+            [GameType.MINES]: 0.15,
+            [GameType.DICE]: 0.10
+        };
+
+        const newCounts: Record<string, number> = {};
+        Object.keys(GAME_CONFIGS).forEach(key => {
+            // Add minor randomness to the distribution so it breathes
+            const percent = distribution[key as GameType] + (Math.random() * 0.02 - 0.01);
+            newCounts[key] = Math.floor(total * percent);
+        });
+        setPlayerCounts(newCounts);
+    };
+
+    updateCounts();
+    const interval = setInterval(updateCounts, 5000); // Update every 5s
     return () => clearInterval(interval);
   }, []);
 
@@ -155,7 +174,7 @@ const App: React.FC = () => {
         className="min-h-screen flex items-center justify-center relative overflow-hidden bg-slate-950 text-white"
         style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}
       >
-        {/* Background Gradients - Simplified to avoid complexity issues */}
+        {/* Background Gradients */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-black"></div>
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -185,8 +204,9 @@ const App: React.FC = () => {
                 <span className="text-white font-bold">Connecting...</span>
              ) : (
                <>
-                 <svg width="28" height="24" viewBox="0 0 57 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M47.0372 12.9065C42.5103 4.59761 33.7909 0 25.0989 0C10.8416 0 0.00537109 11.9876 0.00537109 27.6969C0.00537109 31.0015 0.502497 34.2262 1.41166 37.2889C2.11904 39.6704 4.66609 41.0272 7.08359 40.5539C9.67111 40.0487 11.3965 37.6059 11.0009 34.9966C10.5862 32.2641 10.1906 29.6979 10.1906 27.4818C10.1906 20.171 15.1053 13.5087 21.9549 11.552C30.2228 9.18673 38.6532 15.3363 38.6532 23.934C38.6532 24.8156 38.5287 25.6541 38.3209 26.4712C37.7808 28.5999 39.0687 30.7931 41.1874 31.4166L50.9919 34.3195C54.6478 35.4157 58.0753 31.7604 56.4757 28.2556L53.8583 22.5015C53.6713 22.093 53.4428 21.6845 53.2143 21.2975C51.5109 18.1796 49.426 15.2502 47.0372 12.9065ZM17.4475 24.02C17.4475 25.7832 18.8602 27.2023 20.6259 27.2023C22.3706 27.2023 23.8043 25.7832 23.8043 24.02C23.8043 22.2568 22.3706 20.8377 20.6259 20.8377C18.8602 20.8377 17.4475 22.2568 17.4475 24.02ZM32.7119 24.02C32.7119 25.7832 34.1246 27.2023 35.8903 27.2023C37.6561 27.2023 39.0897 25.7832 39.0897 24.02C39.0897 22.2568 37.6561 20.8377 35.8903 20.8377C34.1246 20.8377 32.7119 22.2568 32.7119 24.02Z" fill="white"/>
+                 {/* Official Phantom Wallet SVG */}
+                 <svg className="shrink-0 w-7 h-7" viewBox="0 0 38 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M32.0566 15.834C33.0393 11.4301 31.2092 7.02368 27.6298 4.35128C23.9952 1.64459 19.2416 0.82663 14.8891 2.16022C10.5418 3.49381 7.08036 7.48733 6.36553 12.265C6.35527 12.3313 6.29884 12.381 6.23215 12.381C5.46271 12.381 4.62659 12.5185 3.86228 12.7588C0.574085 13.7913 -1.00071 17.3593 0.333844 20.6309C1.6684 23.9075 5.10513 25.5549 8.39332 24.5275L27.8555 18.4415C30.4203 17.6385 32.3849 16.5775 32.0566 15.834ZM10.8187 16.2962C9.61837 16.6738 8.32843 16.0081 7.95082 14.8078C7.5732 13.6075 8.23895 12.3175 9.43927 11.9449C10.6396 11.5673 11.9295 12.2331 12.3071 13.4334C12.6847 14.6337 12.019 15.9186 10.8187 16.2962ZM21.6781 12.8883C20.4778 13.2659 19.1879 12.6002 18.8103 11.3998C18.4326 10.1995 19.0984 8.90961 20.2987 8.537C21.499 8.15939 22.789 8.82514 23.1666 10.0255C23.5442 11.2258 22.8785 12.5157 21.6781 12.8883Z" fill="white"/>
                  </svg>
                  <span className="text-white font-bold text-lg tracking-wide">
                     {phantomAvailable ? "Connect Phantom" : "Install Phantom"}

@@ -23,6 +23,7 @@ export interface ChatMessage {
   id: string;
   username: string;
   message: string;
+  avatar?: string;
   isBot?: boolean;
   isSystem?: boolean;
 }

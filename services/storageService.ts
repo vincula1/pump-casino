@@ -1,9 +1,10 @@
 
-import { User } from '../types';
+import { User, LeaderboardEntry } from '../types';
 import { INITIAL_BALANCE } from '../constants';
 
 const STORAGE_PREFIX = 'pump_casino_';
 const USER_KEY = `${STORAGE_PREFIX}user`;
+const LEADERBOARD_KEY = `${STORAGE_PREFIX}leaderboard`;
 
 export const storageService = {
   // Get the currently stored user
@@ -44,8 +45,6 @@ export const storageService = {
   },
   
   // Look up a specific wallet address to see if they played before
-  // In a real backend, this would be a DB query. 
-  // Here we simplify by just checking the current session or creating a fresh state.
   loadUserByWallet: (walletAddress: string): User => {
     const currentStored = storageService.getUser();
     
@@ -59,5 +58,25 @@ export const storageService = {
       username: walletAddress,
       balance: INITIAL_BALANCE
     };
+  },
+
+  // --- LEADERBOARD PERSISTENCE ---
+  
+  getLeaderboard: (): LeaderboardEntry[] | null => {
+    try {
+        const stored = localStorage.getItem(LEADERBOARD_KEY);
+        if (!stored) return null;
+        return JSON.parse(stored);
+    } catch (e) {
+        return null;
+    }
+  },
+
+  saveLeaderboard: (data: LeaderboardEntry[]) => {
+      try {
+          localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(data));
+      } catch (e) {
+          console.error("Failed to save leaderboard", e);
+      }
   }
 };

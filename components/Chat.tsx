@@ -1,15 +1,25 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { generateHypeMessage, ai } from '../services/geminiService';
 import { Chat as GeminiChat } from "@google/genai";
 
+// Cyberpunk/Robot Avatar Style
+const AVATAR_BASE_URL = "https://api.dicebear.com/9.x/bottts-neutral/svg";
+
+const getAvatar = (username: string, isBot?: boolean) => {
+    if (username === 'Casino Host') return `${AVATAR_BASE_URL}?seed=CasinoHost&backgroundColor=10b981`;
+    if (username === 'System') return `${AVATAR_BASE_URL}?seed=System&backgroundColor=0f172a`;
+    return `${AVATAR_BASE_URL}?seed=${username}`;
+};
+
 const INITIAL_GLOBAL_MESSAGES: ChatMessage[] = [
-  { id: '1', username: 'System', message: 'Welcome to the Global Lounge.', isBot: true },
-  { id: '2', username: 'HighRoller', message: 'Good luck everyone.', isBot: false },
+  { id: '1', username: 'System', message: 'Welcome to the Global Lounge.', isBot: true, avatar: getAvatar('System') },
+  { id: '2', username: 'HighRoller', message: 'Good luck everyone.', isBot: false, avatar: getAvatar('HighRoller') },
 ];
 
 const INITIAL_AI_MESSAGES: ChatMessage[] = [
-  { id: 'init', username: 'Casino Host', message: 'Hello! I am your personal casino host. Ask me anything about the games or just chat!', isBot: true }
+  { id: 'init', username: 'Casino Host', message: 'Hello! I am your personal casino host. Ask me anything about the games or just chat!', isBot: true, avatar: getAvatar('Casino Host') }
 ];
 
 export const Chat: React.FC = () => {
@@ -65,7 +75,8 @@ export const Chat: React.FC = () => {
           id: Date.now().toString(),
           username: 'System',
           message: hype,
-          isBot: true
+          isBot: true,
+          avatar: getAvatar('System')
         };
         setGlobalMessages(prev => [...prev.slice(-50), newMessage]);
       }
@@ -78,12 +89,15 @@ export const Chat: React.FC = () => {
     e.preventDefault();
     if (!input.trim()) return;
 
+    const userAvatar = getAvatar('You'); // Or use user's wallet if available
+
     if (activeTab === 'global') {
       const newMessage: ChatMessage = {
         id: Date.now().toString(),
         username: 'You',
         message: input,
-        isBot: false
+        isBot: false,
+        avatar: userAvatar
       };
       setGlobalMessages(prev => [...prev.slice(-50), newMessage]);
       setInput('');
@@ -93,7 +107,8 @@ export const Chat: React.FC = () => {
         id: Date.now().toString(),
         username: 'You',
         message: input,
-        isBot: false
+        isBot: false,
+        avatar: userAvatar
       };
       setAiMessages(prev => [...prev, userMsg]);
       const prompt = input;
@@ -112,7 +127,8 @@ export const Chat: React.FC = () => {
             id: Date.now().toString() + '_ai',
             username: 'Casino Host',
             message: response.text || "I'm speechless right now.",
-            isBot: true
+            isBot: true,
+            avatar: getAvatar('Casino Host')
           };
           setAiMessages(prev => [...prev, aiMsg]);
         } catch (error) {
@@ -127,7 +143,8 @@ export const Chat: React.FC = () => {
                     id: Date.now().toString() + '_ai_retry',
                     username: 'Casino Host',
                     message: retryResponse.text || "Let's try that again.",
-                    isBot: true
+                    isBot: true,
+                    avatar: getAvatar('Casino Host')
                   };
                   setAiMessages(prev => [...prev, aiMsg]);
               }
@@ -136,7 +153,8 @@ export const Chat: React.FC = () => {
                 id: Date.now().toString() + '_err',
                 username: 'Casino Host',
                 message: "I seem to be having trouble connecting to the mainframe. Try again in a moment.",
-                isBot: true
+                isBot: true,
+                avatar: getAvatar('Casino Host')
               };
               setAiMessages(prev => [...prev, errorMsg]);
            }
@@ -168,17 +186,20 @@ export const Chat: React.FC = () => {
       </div>
       
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-800 scrollbar-thin scrollbar-thumb-slate-600">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-800 scrollbar-thin scrollbar-thumb-slate-600">
         {activeTab === 'global' ? (
            <>
              {globalMessages.map((msg) => (
-              <div key={msg.id} className={`text-sm ${msg.isBot ? 'opacity-90' : ''}`}>
-                <div className="flex items-baseline justify-between mb-1">
-                  <span className={`font-semibold text-xs uppercase ${msg.isBot ? 'text-gold-500' : msg.username === 'You' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                    {msg.username}
-                  </span>
+              <div key={msg.id} className={`flex gap-3 ${msg.isBot ? 'opacity-90' : ''}`}>
+                <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between mb-1">
+                    <span className={`font-semibold text-xs uppercase truncate ${msg.isBot ? 'text-gold-500' : msg.username === 'You' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      {msg.username}
+                    </span>
+                  </div>
+                  <p className="text-slate-300 leading-relaxed break-words text-sm">{msg.message}</p>
                 </div>
-                <p className="text-slate-300 leading-relaxed break-words">{msg.message}</p>
               </div>
             ))}
             <div ref={globalEndRef} />
@@ -186,20 +207,27 @@ export const Chat: React.FC = () => {
         ) : (
           <>
              {aiMessages.map((msg) => (
-              <div key={msg.id} className={`text-sm ${msg.isBot ? 'opacity-90' : ''} ${msg.username === 'You' ? 'text-right' : ''}`}>
-                 <div className={`flex items-baseline mb-1 ${msg.username === 'You' ? 'justify-end' : 'justify-start'}`}>
-                  <span className={`font-semibold text-xs uppercase ${msg.isBot ? 'text-emerald-400' : 'text-slate-400'}`}>
-                    {msg.username}
-                  </span>
-                </div>
-                <div className={`inline-block p-3 rounded-xl max-w-[90%] break-words text-left ${msg.username === 'You' ? 'bg-slate-700 text-white rounded-tr-none' : 'bg-slate-900/50 border border-slate-700 text-slate-300 rounded-tl-none'}`}>
-                  {msg.message}
+              <div key={msg.id} className={`flex gap-3 ${msg.username === 'You' ? 'flex-row-reverse' : ''}`}>
+                 <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                 
+                 <div className={`flex flex-col max-w-[80%] ${msg.username === 'You' ? 'items-end' : 'items-start'}`}>
+                    <span className={`font-semibold text-xs uppercase mb-1 ${msg.isBot ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        {msg.username}
+                    </span>
+                    <div className={`p-3 rounded-xl break-words text-sm text-left ${
+                        msg.username === 'You' 
+                        ? 'bg-slate-700 text-white rounded-tr-none' 
+                        : 'bg-slate-900/50 border border-slate-700 text-slate-300 rounded-tl-none'
+                    }`}>
+                        {msg.message}
+                    </div>
                 </div>
               </div>
             ))}
             {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-slate-900/50 border border-slate-700 p-3 rounded-xl rounded-tl-none flex space-x-1 items-center">
+              <div className="flex gap-3">
+                 <img src={getAvatar('Casino Host')} alt="AI" className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                 <div className="bg-slate-900/50 border border-slate-700 p-3 rounded-xl rounded-tl-none flex space-x-1 items-center h-10">
                   <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                   <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                   <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
@@ -218,7 +246,7 @@ export const Chat: React.FC = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={activeTab === 'global' ? "Chat with players..." : "Ask the host..."}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-slate-500 transition-colors placeholder-slate-500"
+          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-slate-500 transition-colors placeholder-slate-500 text-sm"
         />
       </form>
     </div>
