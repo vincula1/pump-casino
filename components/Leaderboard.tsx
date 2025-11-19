@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { LeaderboardEntry, User } from '../types';
-import { storageService } from '../services/storageService';
 
 const NAMES = ["Satoshi", "Whale_01", "LuckyStrike", "AceHigh", "Baron", "CryptoKing", "MoonLander", "DiamondHands", "HODLer", "BagHolder", "WAGMI_Boy", "PumpIt", "RocketMan", "AlphaWolf", "BetaTester", "GammaRay", "DeltaForce", "OmegaZero", "ZenMaster", "KarmaChameleon"];
 
@@ -10,34 +9,36 @@ interface LeaderboardProps {
   currentUser?: User | null;
 }
 
+// Simple pseudo-random function seeded by input
+const seededRandom = (seed: number) => {
+    const x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+};
+
 export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, currentUser }) => {
   const [data, setData] = useState<LeaderboardEntry[]>([]);
-  const [bots, setBots] = useState<LeaderboardEntry[]>([]);
 
-  // Initial Load
   useEffect(() => {
-    // Try to load persisted leaderboard from storage
-    const storedBots = storageService.getLeaderboard();
+    const updateLeaderboard = () => {
+        // Use current timestamp (bucketed by 10 seconds) to ensure all users see the same "random" state
+        const now = Math.floor(Date.now() / 10000); 
+        
+        const bots: LeaderboardEntry[] = NAMES.map((name, index) => {
+            // Create a stable base score for the day (bucketed by day)
+            const daySeed = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+            const baseScore = 10000 + Math.floor(seededRandom(daySeed + index) * 50000);
+            
+            // Add "live" fluctuation based on current 10-second window
+            // This ensures everyone sees the same bots moving up/down at the same time
+            const fluctuation = Math.floor(seededRandom(now + index) * 5000) - 2000;
+            
+            return {
+                username: name,
+                winnings: Math.max(0, baseScore + fluctuation),
+                rank: 0
+            };
+        });
 
-    if (storedBots && storedBots.length > 0) {
-        setBots(storedBots);
-    } else {
-        // Generate fresh bots if no history exists
-        const initialBots = Array.from({ length: 20 }, (_, i) => ({
-            username: NAMES[i % NAMES.length] + (i > 19 ? `_${i}` : ''),
-            winnings: Math.floor(Math.random() * 50000) + 10000 + (20 - i) * 3000,
-            rank: 0
-        }));
-        setBots(initialBots);
-        storageService.saveLeaderboard(initialBots);
-    }
-  }, []);
-
-  // Update rankings and simulate bot activity
-  useEffect(() => {
-    if (bots.length === 0) return;
-
-    const updateRanking = () => {
         let allEntries = [...bots];
         
         // Insert current user if they exist
@@ -62,27 +63,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
         setData(sorted);
     };
 
-    updateRanking();
-
-    // Simulate movement of OTHER players to feel "real" but keep them persistent
-    const interval = setInterval(() => {
-      setBots(currentBots => {
-        const newBots = [...currentBots];
-        // Update a few random bots
-        for(let i=0; i<3; i++) {
-             const randomIndex = Math.floor(Math.random() * newBots.length);
-             // Bots can win or lose, but generally trend upwards to be competitive
-             const change = Math.floor(Math.random() * 4000) - 1000;
-             newBots[randomIndex].winnings = Math.max(0, newBots[randomIndex].winnings + change);
-        }
-        // Save the updated bot state so it persists across reloads
-        storageService.saveLeaderboard(newBots);
-        return newBots;
-      });
-    }, 5000);
-
+    updateLeaderboard();
+    const interval = setInterval(updateLeaderboard, 5000); // Update every 5s to feel live
     return () => clearInterval(interval);
-  }, [bots, currentUser]); 
+  }, [currentUser]); 
 
   return (
     <div className={`bg-slate-800/60 backdrop-blur-xl border border-slate-700 rounded-2xl overflow-hidden shadow-lg flex flex-col ${compact ? 'h-full' : 'h-[600px]'}`}>

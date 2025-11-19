@@ -11,56 +11,56 @@ import { Crash } from './games/Crash';
 import { Mines } from './games/Mines';
 import { User, GameType } from './types';
 import { GAME_CONFIGS } from './constants';
-import { storageService } from './services/storageService';
+import { db } from './services/database'; // Updated import
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentGame, setCurrentGame] = useState<GameType | null>(null);
   const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
+  const [totalOnline, setTotalOnline] = useState<number>(0);
   const [isConnecting, setIsConnecting] = useState(false);
   const [phantomAvailable, setPhantomAvailable] = useState(false);
 
-  // 1. Load persisted user on mount
+  // Initialize Member Counts (Deterministic Simulation)
   useEffect(() => {
-    const storedUser = storageService.getUser();
-    if (storedUser) {
-      setUser(storedUser);
-    }
-  }, []);
-
-  // Initialize Member Counts (Realistic Simulation based on Time of Day)
-  useEffect(() => {
-    // Function to generate a "realistic" number based on UTC hour (Sine wave pattern)
-    const getBaseCount = () => {
-        const date = new Date();
-        const hour = date.getUTCHours();
-        // Peak at 20:00 UTC, Low at 08:00 UTC
-        const offset = 1200; // Base users
-        const amplitude = 800; // Variance
-        const period = (hour - 8) / 24 * 2 * Math.PI; 
-        return Math.floor(offset + amplitude * Math.sin(period));
-    };
-
     const updateCounts = () => {
-        const base = getBaseCount();
-        const noise = Math.floor(Math.random() * 50) - 25; // Small flutter
-        const total = base + noise;
+        const now = Date.now();
+        const hour = new Date().getUTCHours();
+        
+        // Base online count follows a sine wave peaking at 20:00 UTC
+        const timeFactor = Math.sin((hour - 8) / 24 * 2 * Math.PI); 
+        const baseUsers = 2500 + (1500 * timeFactor); 
+        
+        // Shared fluctuation derived from the current 10-second window
+        const timeBlock = Math.floor(now / 10000);
+        const fluctuation = (timeBlock * 9301 + 49297) % 200 - 100;
+        
+        const currentTotal = Math.floor(baseUsers + fluctuation);
+        setTotalOnline(currentTotal);
 
-        // Distribute players across games somewhat consistently
-        const distribution = {
-            [GameType.BLACKJACK]: 0.25,
-            [GameType.SLOTS]: 0.20,
-            [GameType.CRASH]: 0.15,
-            [GameType.ROULETTE]: 0.15,
-            [GameType.MINES]: 0.15,
-            [GameType.DICE]: 0.10
+        // Deterministic distribution
+        const seed = timeBlock;
+        const random = (offset: number) => {
+             const x = Math.sin(seed + offset) * 10000;
+             return x - Math.floor(x);
         };
 
+        const distribution = {
+            [GameType.BLACKJACK]: 0.25 + (random(1) * 0.05),
+            [GameType.SLOTS]: 0.20 + (random(2) * 0.05),
+            [GameType.CRASH]: 0.15 + (random(3) * 0.05),
+            [GameType.ROULETTE]: 0.15 + (random(4) * 0.05),
+            [GameType.MINES]: 0.15 + (random(5) * 0.05),
+            [GameType.DICE]: 0.10 + (random(6) * 0.05)
+        };
+
+        // Normalize distribution
+        const totalDist = Object.values(distribution).reduce((a, b) => a + b, 0);
+        
         const newCounts: Record<string, number> = {};
         Object.keys(GAME_CONFIGS).forEach(key => {
-            // Add minor randomness to the distribution so it breathes
-            const percent = distribution[key as GameType] + (Math.random() * 0.02 - 0.01);
-            newCounts[key] = Math.floor(total * percent);
+            const percent = distribution[key as GameType] / totalDist;
+            newCounts[key] = Math.floor(currentTotal * percent);
         });
         setPlayerCounts(newCounts);
     };
@@ -108,11 +108,8 @@ const App: React.FC = () => {
           const response = await provider.connect();
           const publicKey = response.publicKey.toString();
           
-          // Load existing user data if available, or create new
-          const userAccount = storageService.loadUserByWallet(publicKey);
-          
-          // Save immediately
-          storageService.saveUser(userAccount);
+          // FETCH USER FROM "DATABASE" (Simulates backend call)
+          const userAccount = await db.getUser(publicKey);
           setUser(userAccount);
 
         } catch (connErr) {
@@ -137,21 +134,18 @@ const App: React.FC = () => {
             console.log("Disconnect error", e);
         }
     }
-    storageService.clearSession();
     setUser(null);
     setCurrentGame(null);
   };
 
-  const updateBalance = (amount: number) => {
+  const updateBalance = async (amount: number) => {
     if (user) {
       const newBalance = user.balance + amount;
-      const updatedUser = { ...user, balance: newBalance };
+      // Optimistic UI update
+      setUser({ ...user, balance: newBalance });
       
-      // Update State
-      setUser(updatedUser);
-      
-      // Persist to Storage
-      storageService.saveUser(updatedUser);
+      // Sync with "Database"
+      await db.updateUserBalance(user.username, newBalance);
     }
   };
 
@@ -184,10 +178,31 @@ const App: React.FC = () => {
         
         <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-slate-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex flex-col items-center mx-4">
           
-          <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full mb-8 flex items-center justify-center shadow-[0_0_40px_rgba(139,92,246,0.3)] animate-pulse">
-            <svg width="48" height="48" viewBox="0 0 24 24" className="w-12 h-12 fill-white" xmlns="http://www.w3.org/2000/svg">
-               <path d="M19.06 3.59L21.46 5.99L15.46 11.99L19.06 15.59L21.46 13.19V19.19H15.46L13.06 16.79L16.66 13.19L13.06 9.59L10.66 11.99L16.66 17.99H10.66V23.99H4.66V17.99H10.66V11.99L4.66 5.99L7.06 3.59L13.06 9.59L19.06 3.59Z" fill="white"/> 
-            </svg>
+          {/* NEW REAL LOGO HERE */}
+          <div className="mb-12 transform scale-150">
+             {/* Reuse the Logo component but slightly larger for login screen */}
+             <div className="relative w-24 h-24 shrink-0">
+                <div className="absolute inset-0 bg-gold-500/30 rounded-full blur-xl animate-pulse"></div>
+                <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-2xl relative z-10">
+                <defs>
+                    <linearGradient id="goldGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#fcd34d" />
+                    <stop offset="50%" stopColor="#d97706" />
+                    <stop offset="100%" stopColor="#b45309" />
+                    </linearGradient>
+                    <linearGradient id="darkMetalLogin" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#334155" />
+                    <stop offset="100%" stopColor="#0f172a" />
+                    </linearGradient>
+                </defs>
+                <circle cx="50" cy="50" r="48" fill="url(#darkMetalLogin)" stroke="url(#goldGradientLogin)" strokeWidth="4" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="#d97706" strokeWidth="1" strokeDasharray="4 2" />
+                <circle cx="50" cy="50" r="35" fill="url(#goldGradientLogin)" />
+                <circle cx="50" cy="50" r="28" fill="#0f172a" />
+                <path d="M40 30 H55 C65 30 70 38 70 48 C70 58 65 66 55 66 H48 V80 H40 V30 Z M48 38 V58 H55 C60 58 62 55 62 48 C62 41 60 38 55 38 H48 Z" fill="url(#goldGradientLogin)" />
+                <path d="M35 30 L42 15 L50 22 L58 15 L65 30" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+             </div>
           </div>
 
           <div className="text-center mb-10">
@@ -201,15 +216,19 @@ const App: React.FC = () => {
             className="w-full group relative overflow-hidden rounded-xl bg-[#551BF9] hover:bg-[#6640f5] transition-all duration-200 p-4 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(85,27,249,0.3)] hover:shadow-[0_0_30px_rgba(85,27,249,0.5)] hover:-translate-y-1 active:translate-y-0"
           >
              {isConnecting ? (
-                <span className="text-white font-bold">Connecting...</span>
+                <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span className="text-white font-bold">Connecting DB...</span>
+                </div>
              ) : (
                <>
-                 {/* Official Phantom Wallet SVG */}
-                 <svg className="shrink-0 w-7 h-7" viewBox="0 0 38 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M32.0566 15.834C33.0393 11.4301 31.2092 7.02368 27.6298 4.35128C23.9952 1.64459 19.2416 0.82663 14.8891 2.16022C10.5418 3.49381 7.08036 7.48733 6.36553 12.265C6.35527 12.3313 6.29884 12.381 6.23215 12.381C5.46271 12.381 4.62659 12.5185 3.86228 12.7588C0.574085 13.7913 -1.00071 17.3593 0.333844 20.6309C1.6684 23.9075 5.10513 25.5549 8.39332 24.5275L27.8555 18.4415C30.4203 17.6385 32.3849 16.5775 32.0566 15.834ZM10.8187 16.2962C9.61837 16.6738 8.32843 16.0081 7.95082 14.8078C7.5732 13.6075 8.23895 12.3175 9.43927 11.9449C10.6396 11.5673 11.9295 12.2331 12.3071 13.4334C12.6847 14.6337 12.019 15.9186 10.8187 16.2962ZM21.6781 12.8883C20.4778 13.2659 19.1879 12.6002 18.8103 11.3998C18.4326 10.1995 19.0984 8.90961 20.2987 8.537C21.499 8.15939 22.789 8.82514 23.1666 10.0255C23.5442 11.2258 22.8785 12.5157 21.6781 12.8883Z" fill="white"/>
-                 </svg>
+                 <img 
+                    src="https://docs.phantom.com/mintlify-assets/_mintlify/favicons/phantom-e50e2e68/iJ-2hg6MaJphnoGv/_generated/favicon/apple-touch-icon.png" 
+                    alt="Phantom Wallet" 
+                    className="shrink-0 w-8 h-8 rounded-full" 
+                 />
                  <span className="text-white font-bold text-lg tracking-wide">
-                    {phantomAvailable ? "Connect Phantom" : "Install Phantom"}
+                    Connect Phantom
                  </span>
                </>
              )}
@@ -224,7 +243,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout user={user} onLogout={handleLogout} onNavigateHome={() => setCurrentGame(null)}>
+    <Layout user={user} onLogout={handleLogout} onNavigateHome={() => setCurrentGame(null)} onlineCount={totalOnline}>
       {currentGame ? (
         <div className="animate-fade-in">
           <div className="flex items-center mb-8 border-b border-slate-800 pb-6">
@@ -286,7 +305,6 @@ const App: React.FC = () => {
 
             <div className="lg:w-80 shrink-0">
               <div className="sticky top-6">
-                 {/* Pass the real user to the leaderboard to rank them */}
                  <Leaderboard currentUser={user} />
               </div>
             </div>
