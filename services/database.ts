@@ -8,9 +8,9 @@ export interface DatabaseProvider {
   updateUserBalance(walletAddress: string, newBalance: number): Promise<User>;
 }
 
-// --- LOCAL SIMULATION ADAPTER ---
+// --- LOCAL SIMULATION ADAPTER (Fallback) ---
 class LocalAdapter implements DatabaseProvider {
-  private latency = 400; 
+  private latency = 200; 
 
   private async wait() {
     return new Promise(resolve => setTimeout(resolve, this.latency));
@@ -45,48 +45,62 @@ class LocalAdapter implements DatabaseProvider {
   }
 }
 
-// --- REAL SUPABASE ADAPTER ---
+// --- REAL SUPABASE ADAPTER WITH HYBRID FALLBACK ---
 class SupabaseAdapter implements DatabaseProvider {
   private supabase: SupabaseClient;
+  private localBackup: LocalAdapter;
 
   constructor(url: string, key: string) {
     this.supabase = createClient(url, key);
+    this.localBackup = new LocalAdapter();
   }
 
   async getUser(walletAddress: string): Promise<User> {
     try {
+      // 1. Try to fetch from Supabase
       const { data, error } = await this.supabase
         .from('users')
         .select('*')
         .eq('wallet_address', walletAddress)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error on 0 rows
 
-      if (error || !data) {
-        // User doesn't exist, create them
-        console.log("Creating new user in Supabase...");
-        const { data: newUser, error: createError } = await this.supabase
+      // 2. If Supabase works and we found a user
+      if (data && !error) {
+        // Sync local backup just in case
+        this.localBackup.updateUserBalance(walletAddress, Number(data.balance));
+        return { username: data.wallet_address, balance: Number(data.balance) };
+      }
+      
+      // 3. If user not found in Supabase, try to create
+      if (!data && !error) {
+         console.log("Creating new user in Supabase...");
+         const { data: newUser, error: createError } = await this.supabase
           .from('users')
           .insert([{ wallet_address: walletAddress, balance: INITIAL_BALANCE }])
           .select()
           .single();
-        
-        if (createError) {
-          console.error("Error creating user:", createError);
-          // Fallback to local logic if DB write fails
-          return { username: walletAddress, balance: INITIAL_BALANCE };
-        }
-        
-        return { username: newUser.wallet_address, balance: Number(newUser.balance) };
+         
+         if (!createError && newUser) {
+             return { username: newUser.wallet_address, balance: Number(newUser.balance) };
+         }
+         // If create failed (e.g. RLS policy), fall through to backup
+         console.warn("Supabase create failed, falling back to local");
       }
 
-      return { username: data.wallet_address, balance: Number(data.balance) };
+      // 4. If we had an error or create failed, check Local Storage
+      console.warn("Supabase Read Error or Missing, checking Local Backup...");
+      return this.localBackup.getUser(walletAddress);
+
     } catch (err) {
-      console.error("Supabase Error (getUser):", err);
-      return { username: walletAddress, balance: INITIAL_BALANCE };
+      console.error("Supabase Critical Error (getUser), using Local:", err);
+      return this.localBackup.getUser(walletAddress);
     }
   }
 
   async updateUserBalance(walletAddress: string, newBalance: number): Promise<User> {
+    // ALWAYS update local backup first to ensure UI feels responsive and data is safe locally
+    await this.localBackup.updateUserBalance(walletAddress, newBalance);
+
     try {
       const { data, error } = await this.supabase
         .from('users')
@@ -96,14 +110,14 @@ class SupabaseAdapter implements DatabaseProvider {
         .single();
 
       if (error) {
-        console.error("Error updating balance:", error);
-        throw error;
+        console.warn("Supabase Write Failed (RLS/Network). Data saved to Local Storage only.", error.message);
+        // We still return the success object because we saved it locally
+        return { username: walletAddress, balance: newBalance };
       }
 
       return { username: data.wallet_address, balance: Number(data.balance) };
     } catch (err) {
-       console.error("Supabase Error (updateUserBalance):", err);
-       // Fail gracefully
+       console.warn("Supabase Exception (updateUserBalance). Data saved to Local Storage only.", err);
        return { username: walletAddress, balance: newBalance };
     }
   }
@@ -123,7 +137,7 @@ const isValidKey = (key: string | undefined) => key && key.length > 20;
 
 if (isValidUrl(envUrl) && isValidKey(envKey)) {
   try {
-    console.log("🟢 Initializing Supabase Connection...");
+    console.log("🟢 Initializing Supabase Hybrid Adapter...");
     databaseInstance = new SupabaseAdapter(envUrl as string, envKey as string);
     isLive = true;
   } catch (e) {
@@ -133,7 +147,6 @@ if (isValidUrl(envUrl) && isValidKey(envKey)) {
   }
 } else {
   console.warn("🟡 Supabase keys missing or invalid. Defaulting to Local Simulation.");
-  console.log("Debug Info:", { hasUrl: !!envUrl, hasKey: !!envKey });
   databaseInstance = new LocalAdapter();
   isLive = false;
 }

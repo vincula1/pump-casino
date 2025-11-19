@@ -11,7 +11,7 @@ import { Crash } from './games/Crash';
 import { Mines } from './games/Mines';
 import { User, GameType } from './types';
 import { GAME_CONFIGS } from './constants';
-import { db } from './services/database'; // Updated import
+import { db } from './services/database'; 
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -82,6 +82,29 @@ const App: React.FC = () => {
     return () => window.removeEventListener('load', checkPhantom);
   }, []);
 
+  // Listen for Phantom Account Changes to fix "logging into same one" issue
+  useEffect(() => {
+      const provider = getPhantomProvider();
+      if (provider) {
+          const handleAccountChange = (publicKey: any) => {
+              if (publicKey) {
+                  // User switched accounts in wallet, update app state
+                  console.log("Switched account to:", publicKey.toString());
+                  connectWallet(); // Re-run connect logic with new key
+              } else {
+                  // User locked wallet or disconnected in extension
+                  handleLogout(); 
+              }
+          };
+          
+          // Phantom specific event
+          provider.on('accountChanged', handleAccountChange);
+          return () => {
+              provider.off('accountChanged', handleAccountChange);
+          };
+      }
+  }, [phantomAvailable]); // Re-bind if phantom becomes available
+
   const getPhantomProvider = () => {
     if ('phantom' in window) {
       const provider = (window as any).phantom?.solana;
@@ -105,10 +128,11 @@ const App: React.FC = () => {
 
       if (provider) {
         try {
+          // If already connected, this will just return the current key
           const response = await provider.connect();
           const publicKey = response.publicKey.toString();
           
-          // FETCH USER FROM "DATABASE" (Simulates backend call)
+          // FETCH USER FROM "DATABASE"
           const userAccount = await db.getUser(publicKey);
           setUser(userAccount);
 

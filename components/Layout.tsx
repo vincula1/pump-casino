@@ -75,11 +75,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
 
            {/* Footer Status */}
            <div className="py-4 px-8 text-center md:text-left border-t border-slate-800/50 mt-auto bg-slate-950/50 backdrop-blur flex justify-between items-center">
-              <div className="text-xs text-slate-500">© 2024 Pump Casino. All rights reserved.</div>
+              <div className="text-xs text-slate-500">© 2025 Pump Casino. All rights reserved.</div>
               <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500 shadow-[0_0_5px_#10b981]' : 'bg-yellow-500 shadow-[0_0_5px_#eab308]'}`}></span>
                   <span className={`text-xs font-mono font-bold uppercase tracking-wider ${isLive ? 'text-emerald-500' : 'text-yellow-500'}`}>
-                      {isLive ? 'System: Live' : 'System: Local Sim'}
+                      {isLive ? 'System: Hybrid (DB+Local)' : 'System: Local Sim'}
                   </span>
               </div>
            </div>
