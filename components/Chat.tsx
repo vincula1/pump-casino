@@ -8,7 +8,7 @@ import { Chat as GeminiChat } from "@google/genai";
 const AVATAR_BASE_URL = "https://api.dicebear.com/9.x/bottts-neutral/svg";
 
 const getAvatar = (username: string) => {
-    if (username === 'Casino Host') return `${AVATAR_BASE_URL}?seed=CasinoHost&backgroundColor=10b981`;
+    if (username === 'Casino Host') return `${AVATAR_BASE_URL}?seed=CasinoHost&backgroundColor=10b981&eyes=sensor`;
     if (username === 'System') return `${AVATAR_BASE_URL}?seed=System&backgroundColor=0f172a`;
     return `${AVATAR_BASE_URL}?seed=${username}`;
 };
@@ -93,6 +93,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar }) => {
     e.preventDefault();
     if (!input.trim()) return;
 
+    // Use the passed userAvatar if available, otherwise fallback to generated
     const myAvatar = userAvatar || getAvatar('You'); 
 
     if (activeTab === 'global') {

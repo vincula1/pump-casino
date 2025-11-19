@@ -23,12 +23,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
 
+  const currentYear = new Date().getFullYear();
+
   return (
     <div className="h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
       {/* Navbar */}
       <header className="h-20 border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-50 flex items-center justify-between px-6 shadow-md shrink-0">
         <div className="cursor-pointer group" onClick={onNavigateHome}>
-           {/* New Logo Component */}
            <Logo />
         </div>
 
@@ -50,8 +51,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
              </div>
              <div className="flex items-center gap-4">
                <div className="flex items-center gap-3 text-right hidden sm:flex">
-                 {user.avatarUrl && (
-                    <img src={user.avatarUrl} alt="User" className="w-8 h-8 rounded-full bg-slate-800 border border-slate-600" />
+                 {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="User" className="w-9 h-9 rounded-full bg-slate-800 border-2 border-slate-600" />
+                 ) : (
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600"></div>
                  )}
                  <div>
                     <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Wallet</div>
@@ -80,11 +83,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
 
            {/* Footer Status */}
            <div className="py-4 px-8 text-center md:text-left border-t border-slate-800/50 mt-auto bg-slate-950/50 backdrop-blur flex justify-between items-center">
-              <div className="text-xs text-slate-500">© 2025 Pump Casino. All rights reserved.</div>
+              <div className="text-xs text-slate-500">© {currentYear} Pump Casino. All rights reserved.</div>
               <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500 shadow-[0_0_5px_#10b981]' : 'bg-yellow-500 shadow-[0_0_5px_#eab308]'}`}></span>
                   <span className={`text-xs font-mono font-bold uppercase tracking-wider ${isLive ? 'text-emerald-500' : 'text-yellow-500'}`}>
-                      {isLive ? 'System: Hybrid (DB+Local)' : 'System: Local Sim'}
+                      {isLive ? 'System: Online' : 'System: Offline Mode'}
                   </span>
               </div>
            </div>

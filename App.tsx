@@ -82,51 +82,56 @@ const App: React.FC = () => {
     return null;
   };
 
-  // Check for Phantom availability & Auto-Connect if previously connected
+  // ROBUST WALLET CHECKER
+  // Checks for Phantom injection repeatedly on load to ensure we catch it
   useEffect(() => {
-    const initWallet = async () => {
-      const provider = getPhantomProvider();
-      if (provider) {
-        setPhantomAvailable(true);
-
-        // Only auto-connect if user didn't explicitly disconnect
-        const wasDisconnected = localStorage.getItem('explicitDisconnect') === 'true';
-        
-        if (!wasDisconnected) {
-            try {
-                // Eager connect (only if trusted)
-                const response = await provider.connect({ onlyIfTrusted: true });
-                if (response.publicKey) {
-                    const walletAddr = response.publicKey.toString();
-                    console.log("Auto-connected:", walletAddr);
-                    const userAccount = await db.getUser(walletAddr);
-                    setUser(userAccount);
-                }
-            } catch (err) {
-                // Not trusted or not connected, do nothing
-            }
+    let attempts = 0;
+    const checkProvider = setInterval(() => {
+        attempts++;
+        const provider = getPhantomProvider();
+        if (provider) {
+            setPhantomAvailable(true);
+            initWallet(provider);
+            clearInterval(checkProvider);
         }
-        
-        // Setup listeners
-        provider.on('accountChanged', async (publicKey: any) => {
-             if (publicKey) {
-                 console.log("Wallet Switched:", publicKey.toString());
-                 localStorage.removeItem('explicitDisconnect'); // Reset disconnect flag on switch
-                 const userAccount = await db.getUser(publicKey.toString());
-                 setUser(userAccount);
-             } else {
-                 // Phantom locked or disconnected
-                 setUser(null);
-             }
-        });
-      }
-    };
-
-    initWallet();
-    window.addEventListener('load', initWallet);
-    return () => window.removeEventListener('load', initWallet);
+        if (attempts > 10) clearInterval(checkProvider); // Stop after 5 seconds
+    }, 500);
+    
+    return () => clearInterval(checkProvider);
   }, []);
 
+  const initWallet = async (provider: any) => {
+    // Only auto-connect if user didn't explicitly disconnect
+    const wasDisconnected = localStorage.getItem('explicitDisconnect') === 'true';
+    
+    if (!wasDisconnected) {
+        try {
+            // Eager connect (only if trusted)
+            const response = await provider.connect({ onlyIfTrusted: true });
+            if (response.publicKey) {
+                const walletAddr = response.publicKey.toString();
+                console.log("Auto-connected:", walletAddr);
+                const userAccount = await db.getUser(walletAddr);
+                setUser(userAccount);
+            }
+        } catch (err) {
+            // Not trusted or not connected, do nothing
+        }
+    }
+    
+    // Setup listeners
+    provider.on('accountChanged', async (publicKey: any) => {
+            if (publicKey) {
+                console.log("Wallet Switched:", publicKey.toString());
+                localStorage.removeItem('explicitDisconnect'); // Reset disconnect flag on switch
+                const userAccount = await db.getUser(publicKey.toString());
+                setUser(userAccount);
+            } else {
+                // Phantom locked or disconnected
+                setUser(null);
+            }
+    });
+  };
 
   const connectWallet = async () => {
     setIsConnecting(true);
@@ -248,8 +253,9 @@ const App: React.FC = () => {
              )}
           </button>
           
-          <div className="mt-8 text-center text-xs text-slate-600 font-medium">
-             By connecting, you agree to our Terms of Service.
+          <div className="mt-8 text-center text-xs text-slate-600 font-medium max-w-xs">
+             By connecting, you agree to the Terms. <br/>
+             <span className="opacity-50 text-[10px]">Tip: Check browser console if database isn't syncing.</span>
           </div>
         </div>
       </div>
