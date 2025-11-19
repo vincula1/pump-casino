@@ -11,6 +11,7 @@ export enum GameType {
 export interface User {
   username: string;
   balance: number;
+  avatarUrl?: string;
 }
 
 export interface LeaderboardEntry {

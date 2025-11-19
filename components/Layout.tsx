@@ -49,9 +49,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
                <span className="font-mono font-bold text-gold-400 text-lg tracking-tight">${user.balance.toLocaleString()}</span>
              </div>
              <div className="flex items-center gap-4">
-               <div className="text-right hidden sm:block">
-                 <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Wallet</div>
-                 <div className="font-medium text-white text-sm font-mono text-emerald-400">{formatAddress(user.username)}</div>
+               <div className="flex items-center gap-3 text-right hidden sm:flex">
+                 {user.avatarUrl && (
+                    <img src={user.avatarUrl} alt="User" className="w-8 h-8 rounded-full bg-slate-800 border border-slate-600" />
+                 )}
+                 <div>
+                    <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Wallet</div>
+                    <div className="font-medium text-white text-sm font-mono text-emerald-400">{formatAddress(user.username)}</div>
+                 </div>
                </div>
                <Button variant="secondary" onClick={onLogout} className="py-2 px-4 text-sm hover:bg-slate-800">Disconnect</Button>
              </div>
@@ -88,7 +93,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
         {/* Right Side Chat Column */}
         {user && (
           <aside className="w-80 border-l border-slate-800 bg-slate-900 flex flex-col shrink-0 shadow-2xl z-20">
-            <Chat />
+            <Chat userAvatar={user.avatarUrl} />
           </aside>
         )}
       </div>

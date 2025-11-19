@@ -28,7 +28,8 @@ class LocalAdapter implements DatabaseProvider {
 
     const newUser: User = {
       username: walletAddress,
-      balance: INITIAL_BALANCE
+      balance: INITIAL_BALANCE,
+      avatarUrl: `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${walletAddress}`
     };
     localStorage.setItem(key, JSON.stringify(newUser));
     return newUser;
@@ -36,8 +37,9 @@ class LocalAdapter implements DatabaseProvider {
 
   async updateUserBalance(walletAddress: string, newBalance: number): Promise<User> {
     const key = `pump_casino_user_${walletAddress}`;
+    const currentUser = await this.getUser(walletAddress);
     const user: User = {
-      username: walletAddress,
+      ...currentUser,
       balance: newBalance
     };
     localStorage.setItem(key, JSON.stringify(user));
@@ -62,32 +64,44 @@ class SupabaseAdapter implements DatabaseProvider {
         .from('users')
         .select('*')
         .eq('wallet_address', walletAddress)
-        .maybeSingle(); // Use maybeSingle to avoid error on 0 rows
+        .maybeSingle();
 
       // 2. If Supabase works and we found a user
       if (data && !error) {
-        // Sync local backup just in case
+        // Sync local backup
         this.localBackup.updateUserBalance(walletAddress, Number(data.balance));
-        return { username: data.wallet_address, balance: Number(data.balance) };
+        return { 
+            username: data.wallet_address, 
+            balance: Number(data.balance),
+            avatarUrl: data.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${walletAddress}`
+        };
       }
       
       // 3. If user not found in Supabase, try to create
       if (!data && !error) {
          console.log("Creating new user in Supabase...");
+         const defaultAvatar = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${walletAddress}`;
          const { data: newUser, error: createError } = await this.supabase
           .from('users')
-          .insert([{ wallet_address: walletAddress, balance: INITIAL_BALANCE }])
+          .insert([{ 
+              wallet_address: walletAddress, 
+              balance: INITIAL_BALANCE,
+              avatar_url: defaultAvatar
+          }])
           .select()
           .single();
          
          if (!createError && newUser) {
-             return { username: newUser.wallet_address, balance: Number(newUser.balance) };
+             return { 
+                 username: newUser.wallet_address, 
+                 balance: Number(newUser.balance),
+                 avatarUrl: newUser.avatar_url
+             };
          }
-         // If create failed (e.g. RLS policy), fall through to backup
          console.warn("Supabase create failed, falling back to local");
       }
 
-      // 4. If we had an error or create failed, check Local Storage
+      // 4. Fallback
       console.warn("Supabase Read Error or Missing, checking Local Backup...");
       return this.localBackup.getUser(walletAddress);
 
@@ -98,8 +112,8 @@ class SupabaseAdapter implements DatabaseProvider {
   }
 
   async updateUserBalance(walletAddress: string, newBalance: number): Promise<User> {
-    // ALWAYS update local backup first to ensure UI feels responsive and data is safe locally
-    await this.localBackup.updateUserBalance(walletAddress, newBalance);
+    // ALWAYS update local backup first
+    const localUser = await this.localBackup.updateUserBalance(walletAddress, newBalance);
 
     try {
       const { data, error } = await this.supabase
@@ -110,43 +124,40 @@ class SupabaseAdapter implements DatabaseProvider {
         .single();
 
       if (error) {
-        console.warn("Supabase Write Failed (RLS/Network). Data saved to Local Storage only.", error.message);
-        // We still return the success object because we saved it locally
-        return { username: walletAddress, balance: newBalance };
+        console.warn("Supabase Write Failed. Data saved locally only.", error.message);
+        return localUser;
       }
 
-      return { username: data.wallet_address, balance: Number(data.balance) };
+      return { 
+          username: data.wallet_address, 
+          balance: Number(data.balance),
+          avatarUrl: data.avatar_url || localUser.avatarUrl
+      };
     } catch (err) {
-       console.warn("Supabase Exception (updateUserBalance). Data saved to Local Storage only.", err);
-       return { username: walletAddress, balance: newBalance };
+       console.warn("Supabase Exception. Data saved locally only.", err);
+       return localUser;
     }
   }
 }
 
 // --- FACTORY ---
-// Access injected variables from vite.config.ts
-const envUrl = process.env.VITE_SUPABASE_URL;
-const envKey = process.env.VITE_SUPABASE_ANON_KEY;
+// WE USE THE KEYS PROVIDED BY THE USER AS DEFAULTS TO ENSURE IT WORKS
+const PROVIDED_URL = "https://wkblzroluuljlsklxyeb.supabase.co";
+const PROVIDED_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrYmx6cm9sdXVsamxza2x4eWViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1ODYxMzgsImV4cCI6MjA3OTE2MjEzOH0.HpPtkq8gGZGH0-WDMyoFMuTEZwU64j397NJNLBmld1A";
+
+// Check process env first, then fall back to the hardcoded keys
+const envUrl = process.env.VITE_SUPABASE_URL || PROVIDED_URL;
+const envKey = process.env.VITE_SUPABASE_ANON_KEY || PROVIDED_KEY;
 
 let databaseInstance: DatabaseProvider;
 export let isLive = false;
 
-// Strict validation to prevent crashing createClient
-const isValidUrl = (url: string | undefined) => url && url.startsWith('http');
-const isValidKey = (key: string | undefined) => key && key.length > 20;
-
-if (isValidUrl(envUrl) && isValidKey(envKey)) {
-  try {
-    console.log("🟢 Initializing Supabase Hybrid Adapter...");
-    databaseInstance = new SupabaseAdapter(envUrl as string, envKey as string);
-    isLive = true;
-  } catch (e) {
-    console.error("🔴 Supabase Initialization Failed:", e);
-    databaseInstance = new LocalAdapter();
-    isLive = false;
-  }
-} else {
-  console.warn("🟡 Supabase keys missing or invalid. Defaulting to Local Simulation.");
+try {
+  console.log("🟢 Initializing Database Connection...");
+  databaseInstance = new SupabaseAdapter(envUrl, envKey);
+  isLive = true;
+} catch (e) {
+  console.error("🔴 Supabase Initialization Failed:", e);
   databaseInstance = new LocalAdapter();
   isLive = false;
 }

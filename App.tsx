@@ -27,18 +27,15 @@ const App: React.FC = () => {
         const now = Date.now();
         const hour = new Date().getUTCHours();
         
-        // Base online count follows a sine wave peaking at 20:00 UTC
         const timeFactor = Math.sin((hour - 8) / 24 * 2 * Math.PI); 
         const baseUsers = 2500 + (1500 * timeFactor); 
         
-        // Shared fluctuation derived from the current 10-second window
         const timeBlock = Math.floor(now / 10000);
         const fluctuation = (timeBlock * 9301 + 49297) % 200 - 100;
         
         const currentTotal = Math.floor(baseUsers + fluctuation);
         setTotalOnline(currentTotal);
 
-        // Deterministic distribution
         const seed = timeBlock;
         const random = (offset: number) => {
              const x = Math.sin(seed + offset) * 10000;
@@ -54,7 +51,6 @@ const App: React.FC = () => {
             [GameType.DICE]: 0.10 + (random(6) * 0.05)
         };
 
-        // Normalize distribution
         const totalDist = Object.values(distribution).reduce((a, b) => a + b, 0);
         
         const newCounts: Record<string, number> = {};
@@ -82,28 +78,31 @@ const App: React.FC = () => {
     return () => window.removeEventListener('load', checkPhantom);
   }, []);
 
-  // Listen for Phantom Account Changes to fix "logging into same one" issue
+  // CRITICAL: Listen for Phantom Account Changes
+  // This ensures if the user switches accounts in the extension, the app updates immediately
   useEffect(() => {
       const provider = getPhantomProvider();
       if (provider) {
-          const handleAccountChange = (publicKey: any) => {
+          const handleAccountChange = async (publicKey: any) => {
               if (publicKey) {
-                  // User switched accounts in wallet, update app state
-                  console.log("Switched account to:", publicKey.toString());
-                  connectWallet(); // Re-run connect logic with new key
+                  console.log("Wallet Account Changed to:", publicKey.toString());
+                  // Force a reload of the user data for the new key
+                  const userAccount = await db.getUser(publicKey.toString());
+                  setUser(userAccount);
               } else {
-                  // User locked wallet or disconnected in extension
-                  handleLogout(); 
+                  // If user locked wallet or disconnected in extension
+                  console.log("Wallet Disconnected via Extension");
+                  setUser(null);
+                  setCurrentGame(null);
               }
           };
           
-          // Phantom specific event
           provider.on('accountChanged', handleAccountChange);
           return () => {
               provider.off('accountChanged', handleAccountChange);
           };
       }
-  }, [phantomAvailable]); // Re-bind if phantom becomes available
+  }, [phantomAvailable]);
 
   const getPhantomProvider = () => {
     if ('phantom' in window) {
@@ -128,11 +127,11 @@ const App: React.FC = () => {
 
       if (provider) {
         try {
-          // If already connected, this will just return the current key
+          // Connect
           const response = await provider.connect();
           const publicKey = response.publicKey.toString();
+          console.log("Connected to wallet:", publicKey);
           
-          // FETCH USER FROM "DATABASE"
           const userAccount = await db.getUser(publicKey);
           setUser(userAccount);
 
@@ -149,11 +148,13 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     const provider = getPhantomProvider();
     if (provider) {
         try {
-            provider.disconnect(); 
+            // Explicitly disconnect the provider session
+            await provider.disconnect(); 
+            console.log("Provider disconnected");
         } catch(e) {
             console.log("Disconnect error", e);
         }
@@ -192,19 +193,15 @@ const App: React.FC = () => {
         className="min-h-screen flex items-center justify-center relative overflow-hidden bg-slate-950 text-white"
         style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}
       >
-        {/* Background Gradients */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-black"></div>
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-3xl pointer-events-none"></div>
         
-        {/* Grid Pattern */}
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
         
         <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-slate-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex flex-col items-center mx-4">
           
-          {/* NEW REAL LOGO HERE */}
           <div className="mb-12 transform scale-150">
-             {/* Reuse the Logo component but slightly larger for login screen */}
              <div className="relative w-24 h-24 shrink-0">
                 <div className="absolute inset-0 bg-gold-500/30 rounded-full blur-xl animate-pulse"></div>
                 <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-2xl relative z-10">
@@ -242,7 +239,7 @@ const App: React.FC = () => {
              {isConnecting ? (
                 <div className="flex items-center gap-2">
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span className="text-white font-bold">Connecting DB...</span>
+                    <span className="text-white font-bold">Connecting...</span>
                 </div>
              ) : (
                <>
@@ -267,7 +264,12 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout user={user} onLogout={handleLogout} onNavigateHome={() => setCurrentGame(null)} onlineCount={totalOnline}>
+    <Layout 
+      user={user} 
+      onLogout={handleLogout} 
+      onNavigateHome={() => setCurrentGame(null)} 
+      onlineCount={totalOnline}
+    >
       {currentGame ? (
         <div className="animate-fade-in">
           <div className="flex items-center mb-8 border-b border-slate-800 pb-6">

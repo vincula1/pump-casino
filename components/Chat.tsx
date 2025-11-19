@@ -7,7 +7,7 @@ import { Chat as GeminiChat } from "@google/genai";
 // Cyberpunk/Robot Avatar Style
 const AVATAR_BASE_URL = "https://api.dicebear.com/9.x/bottts-neutral/svg";
 
-const getAvatar = (username: string, isBot?: boolean) => {
+const getAvatar = (username: string) => {
     if (username === 'Casino Host') return `${AVATAR_BASE_URL}?seed=CasinoHost&backgroundColor=10b981`;
     if (username === 'System') return `${AVATAR_BASE_URL}?seed=System&backgroundColor=0f172a`;
     return `${AVATAR_BASE_URL}?seed=${username}`;
@@ -22,7 +22,11 @@ const INITIAL_AI_MESSAGES: ChatMessage[] = [
   { id: 'init', username: 'Casino Host', message: 'Hello! I am your personal casino host. Ask me anything about the games or just chat!', isBot: true, avatar: getAvatar('Casino Host') }
 ];
 
-export const Chat: React.FC = () => {
+interface ChatProps {
+    userAvatar?: string;
+}
+
+export const Chat: React.FC<ChatProps> = ({ userAvatar }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'ai'>('global');
   const [globalMessages, setGlobalMessages] = useState<ChatMessage[]>(INITIAL_GLOBAL_MESSAGES);
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>(INITIAL_AI_MESSAGES);
@@ -89,7 +93,7 @@ export const Chat: React.FC = () => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const userAvatar = getAvatar('You'); // Or use user's wallet if available
+    const myAvatar = userAvatar || getAvatar('You'); 
 
     if (activeTab === 'global') {
       const newMessage: ChatMessage = {
@@ -97,7 +101,7 @@ export const Chat: React.FC = () => {
         username: 'You',
         message: input,
         isBot: false,
-        avatar: userAvatar
+        avatar: myAvatar
       };
       setGlobalMessages(prev => [...prev.slice(-50), newMessage]);
       setInput('');
@@ -108,7 +112,7 @@ export const Chat: React.FC = () => {
         username: 'You',
         message: input,
         isBot: false,
-        avatar: userAvatar
+        avatar: myAvatar
       };
       setAiMessages(prev => [...prev, userMsg]);
       const prompt = input;
@@ -136,7 +140,6 @@ export const Chat: React.FC = () => {
            // Try to reconnect and retry once
            initChatSession();
            try {
-              // Simple retry logic for robustness
               if (chatSession.current) {
                   const retryResponse = await chatSession.current.sendMessage({ message: prompt });
                   const aiMsg: ChatMessage = {
