@@ -11,7 +11,7 @@ import { Crash } from './games/Crash';
 import { Mines } from './games/Mines';
 import { User, GameType } from './types';
 import { GAME_CONFIGS } from './constants';
-import { db } from './services/database'; 
+import { db, isLive } from './services/database'; 
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -66,44 +66,6 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Check for Phantom availability
-  useEffect(() => {
-    const checkPhantom = () => {
-      const provider = getPhantomProvider();
-      if (provider) setPhantomAvailable(true);
-    };
-
-    checkPhantom();
-    window.addEventListener('load', checkPhantom);
-    return () => window.removeEventListener('load', checkPhantom);
-  }, []);
-
-  // CRITICAL: Listen for Phantom Account Changes
-  // This ensures if the user switches accounts in the extension, the app updates immediately
-  useEffect(() => {
-      const provider = getPhantomProvider();
-      if (provider) {
-          const handleAccountChange = async (publicKey: any) => {
-              if (publicKey) {
-                  console.log("Wallet Account Changed to:", publicKey.toString());
-                  // Force a reload of the user data for the new key
-                  const userAccount = await db.getUser(publicKey.toString());
-                  setUser(userAccount);
-              } else {
-                  // If user locked wallet or disconnected in extension
-                  console.log("Wallet Disconnected via Extension");
-                  setUser(null);
-                  setCurrentGame(null);
-              }
-          };
-          
-          provider.on('accountChanged', handleAccountChange);
-          return () => {
-              provider.off('accountChanged', handleAccountChange);
-          };
-      }
-  }, [phantomAvailable]);
-
   const getPhantomProvider = () => {
     if ('phantom' in window) {
       const provider = (window as any).phantom?.solana;
@@ -120,6 +82,52 @@ const App: React.FC = () => {
     return null;
   };
 
+  // Check for Phantom availability & Auto-Connect if previously connected
+  useEffect(() => {
+    const initWallet = async () => {
+      const provider = getPhantomProvider();
+      if (provider) {
+        setPhantomAvailable(true);
+
+        // Only auto-connect if user didn't explicitly disconnect
+        const wasDisconnected = localStorage.getItem('explicitDisconnect') === 'true';
+        
+        if (!wasDisconnected) {
+            try {
+                // Eager connect (only if trusted)
+                const response = await provider.connect({ onlyIfTrusted: true });
+                if (response.publicKey) {
+                    const walletAddr = response.publicKey.toString();
+                    console.log("Auto-connected:", walletAddr);
+                    const userAccount = await db.getUser(walletAddr);
+                    setUser(userAccount);
+                }
+            } catch (err) {
+                // Not trusted or not connected, do nothing
+            }
+        }
+        
+        // Setup listeners
+        provider.on('accountChanged', async (publicKey: any) => {
+             if (publicKey) {
+                 console.log("Wallet Switched:", publicKey.toString());
+                 localStorage.removeItem('explicitDisconnect'); // Reset disconnect flag on switch
+                 const userAccount = await db.getUser(publicKey.toString());
+                 setUser(userAccount);
+             } else {
+                 // Phantom locked or disconnected
+                 setUser(null);
+             }
+        });
+      }
+    };
+
+    initWallet();
+    window.addEventListener('load', initWallet);
+    return () => window.removeEventListener('load', initWallet);
+  }, []);
+
+
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
@@ -127,10 +135,11 @@ const App: React.FC = () => {
 
       if (provider) {
         try {
-          // Connect
           const response = await provider.connect();
           const publicKey = response.publicKey.toString();
-          console.log("Connected to wallet:", publicKey);
+          
+          // Remove the disconnect flag since user explicitly connected
+          localStorage.removeItem('explicitDisconnect');
           
           const userAccount = await db.getUser(publicKey);
           setUser(userAccount);
@@ -149,16 +158,18 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    const provider = getPhantomProvider();
-    if (provider) {
-        try {
-            // Explicitly disconnect the provider session
-            await provider.disconnect(); 
-            console.log("Provider disconnected");
-        } catch(e) {
-            console.log("Disconnect error", e);
+    try {
+        const provider = getPhantomProvider();
+        if (provider) {
+            await provider.disconnect();
         }
+    } catch (e) {
+        console.warn("Provider disconnect error", e);
     }
+    
+    // Set flag so we don't auto-reconnect on refresh
+    localStorage.setItem('explicitDisconnect', 'true');
+    
     setUser(null);
     setCurrentGame(null);
   };
@@ -166,10 +177,7 @@ const App: React.FC = () => {
   const updateBalance = async (amount: number) => {
     if (user) {
       const newBalance = user.balance + amount;
-      // Optimistic UI update
       setUser({ ...user, balance: newBalance });
-      
-      // Sync with "Database"
       await db.updateUserBalance(user.username, newBalance);
     }
   };
@@ -191,7 +199,6 @@ const App: React.FC = () => {
     return (
       <div 
         className="min-h-screen flex items-center justify-center relative overflow-hidden bg-slate-950 text-white"
-        style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-black"></div>
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -199,36 +206,22 @@ const App: React.FC = () => {
         
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
         
-        <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-slate-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex flex-col items-center mx-4">
+        <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-slate-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex flex-col items-center mx-4 animate-fade-in">
           
           <div className="mb-12 transform scale-150">
-             <div className="relative w-24 h-24 shrink-0">
-                <div className="absolute inset-0 bg-gold-500/30 rounded-full blur-xl animate-pulse"></div>
-                <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-2xl relative z-10">
-                <defs>
-                    <linearGradient id="goldGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#fcd34d" />
-                    <stop offset="50%" stopColor="#d97706" />
-                    <stop offset="100%" stopColor="#b45309" />
-                    </linearGradient>
-                    <linearGradient id="darkMetalLogin" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#334155" />
-                    <stop offset="100%" stopColor="#0f172a" />
-                    </linearGradient>
-                </defs>
-                <circle cx="50" cy="50" r="48" fill="url(#darkMetalLogin)" stroke="url(#goldGradientLogin)" strokeWidth="4" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#d97706" strokeWidth="1" strokeDasharray="4 2" />
-                <circle cx="50" cy="50" r="35" fill="url(#goldGradientLogin)" />
-                <circle cx="50" cy="50" r="28" fill="#0f172a" />
-                <path d="M40 30 H55 C65 30 70 38 70 48 C70 58 65 66 55 66 H48 V80 H40 V30 Z M48 38 V58 H55 C60 58 62 55 62 48 C62 41 60 38 55 38 H48 Z" fill="url(#goldGradientLogin)" />
-                <path d="M35 30 L42 15 L50 22 L58 15 L65 30" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+             {/* Animated Ring */}
+             <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
+                <div className="absolute inset-0 bg-gold-500/20 rounded-full blur-xl animate-pulse"></div>
+                <div className="w-20 h-20 border-4 border-slate-800 rounded-full relative z-10 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl">
+                     <div className="w-8 h-8 border-2 border-gold-500 transform rotate-45"></div>
+                </div>
+                <div className="absolute inset-0 border-t-4 border-gold-500 rounded-full animate-spin-slow"></div>
              </div>
           </div>
 
           <div className="text-center mb-10">
-            <h1 className="text-4xl font-black text-white mb-2 tracking-tight font-sans">PUMP CASINO</h1>
-            <p className="text-slate-400 font-medium">Connect your wallet to play</p>
+            <h1 className="text-5xl font-black text-white mb-2 tracking-tighter font-sans">PUMP<span className="text-gold-500">.</span>CASINO</h1>
+            <p className="text-slate-400 font-medium text-sm tracking-wide uppercase">Next Gen Crypto Gaming</p>
           </div>
           
           <button 
@@ -246,7 +239,7 @@ const App: React.FC = () => {
                  <img 
                     src="https://docs.phantom.com/mintlify-assets/_mintlify/favicons/phantom-e50e2e68/iJ-2hg6MaJphnoGv/_generated/favicon/apple-touch-icon.png" 
                     alt="Phantom Wallet" 
-                    className="shrink-0 w-8 h-8 rounded-full" 
+                    className="shrink-0 w-6 h-6 rounded-full" 
                  />
                  <span className="text-white font-bold text-lg tracking-wide">
                     Connect Phantom
@@ -255,8 +248,8 @@ const App: React.FC = () => {
              )}
           </button>
           
-          <div className="mt-8 text-center text-xs text-slate-500 font-medium">
-             Secure connection via Solana Blockchain
+          <div className="mt-8 text-center text-xs text-slate-600 font-medium">
+             By connecting, you agree to our Terms of Service.
           </div>
         </div>
       </div>

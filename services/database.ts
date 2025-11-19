@@ -8,22 +8,17 @@ export interface DatabaseProvider {
   updateUserBalance(walletAddress: string, newBalance: number): Promise<User>;
 }
 
-// --- LOCAL SIMULATION ADAPTER (Fallback) ---
+// --- LOCAL SIMULATION ADAPTER (Always works) ---
 class LocalAdapter implements DatabaseProvider {
-  private latency = 200; 
-
-  private async wait() {
-    return new Promise(resolve => setTimeout(resolve, this.latency));
-  }
-
   async getUser(walletAddress: string): Promise<User> {
-    await this.wait();
-    
     const key = `pump_casino_user_${walletAddress}`;
-    const stored = localStorage.getItem(key);
-    
-    if (stored) {
-      return JSON.parse(stored);
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error("Local storage access failed", e);
     }
 
     const newUser: User = {
@@ -31,7 +26,11 @@ class LocalAdapter implements DatabaseProvider {
       balance: INITIAL_BALANCE,
       avatarUrl: `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${walletAddress}`
     };
-    localStorage.setItem(key, JSON.stringify(newUser));
+    
+    try {
+        localStorage.setItem(key, JSON.stringify(newUser));
+    } catch (e) {}
+    
     return newUser;
   }
 
@@ -42,33 +41,38 @@ class LocalAdapter implements DatabaseProvider {
       ...currentUser,
       balance: newBalance
     };
-    localStorage.setItem(key, JSON.stringify(user));
+    try {
+        localStorage.setItem(key, JSON.stringify(user));
+    } catch (e) {}
     return user;
   }
 }
 
-// --- REAL SUPABASE ADAPTER WITH HYBRID FALLBACK ---
+// --- SUPABASE ADAPTER ---
 class SupabaseAdapter implements DatabaseProvider {
   private supabase: SupabaseClient;
   private localBackup: LocalAdapter;
 
   constructor(url: string, key: string) {
-    this.supabase = createClient(url, key);
+    this.supabase = createClient(url, key, {
+        auth: { persistSession: false } // Don't persist auth session, we use wallet address
+    });
     this.localBackup = new LocalAdapter();
   }
 
   async getUser(walletAddress: string): Promise<User> {
     try {
-      // 1. Try to fetch from Supabase
+      // Attempt to fetch from real DB
       const { data, error } = await this.supabase
         .from('users')
         .select('*')
         .eq('wallet_address', walletAddress)
         .maybeSingle();
 
-      // 2. If Supabase works and we found a user
-      if (data && !error) {
-        // Sync local backup
+      if (error) throw error;
+
+      if (data) {
+        // Found user, update local backup just in case
         this.localBackup.updateUserBalance(walletAddress, Number(data.balance));
         return { 
             username: data.wallet_address, 
@@ -77,89 +81,79 @@ class SupabaseAdapter implements DatabaseProvider {
         };
       }
       
-      // 3. If user not found in Supabase, try to create
-      if (!data && !error) {
-         console.log("Creating new user in Supabase...");
-         const defaultAvatar = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${walletAddress}`;
-         const { data: newUser, error: createError } = await this.supabase
-          .from('users')
-          .insert([{ 
-              wallet_address: walletAddress, 
-              balance: INITIAL_BALANCE,
-              avatar_url: defaultAvatar
-          }])
-          .select()
-          .single();
-         
-         if (!createError && newUser) {
-             return { 
-                 username: newUser.wallet_address, 
-                 balance: Number(newUser.balance),
-                 avatarUrl: newUser.avatar_url
-             };
-         }
-         console.warn("Supabase create failed, falling back to local");
-      }
+      // User not found, create new
+      const defaultAvatar = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${walletAddress}`;
+      const { data: newUser, error: createError } = await this.supabase
+        .from('users')
+        .insert([{ 
+            wallet_address: walletAddress, 
+            balance: INITIAL_BALANCE,
+            avatar_url: defaultAvatar
+        }])
+        .select()
+        .single();
+        
+      if (createError) throw createError;
 
-      // 4. Fallback
-      console.warn("Supabase Read Error or Missing, checking Local Backup...");
-      return this.localBackup.getUser(walletAddress);
+      return { 
+          username: newUser.wallet_address, 
+          balance: Number(newUser.balance),
+          avatarUrl: newUser.avatar_url
+      };
 
     } catch (err) {
-      console.error("Supabase Critical Error (getUser), using Local:", err);
+      console.warn("Supabase unavailable, using local fallback:", err);
+      // Silent Fallback to Local Storage
       return this.localBackup.getUser(walletAddress);
     }
   }
 
   async updateUserBalance(walletAddress: string, newBalance: number): Promise<User> {
-    // ALWAYS update local backup first
-    const localUser = await this.localBackup.updateUserBalance(walletAddress, newBalance);
+    // Optimistic: Update local first so UI is instant
+    const localResult = await this.localBackup.updateUserBalance(walletAddress, newBalance);
 
     try {
-      const { data, error } = await this.supabase
+      // Background: Try to sync to Supabase
+      await this.supabase
         .from('users')
         .update({ balance: newBalance })
-        .eq('wallet_address', walletAddress)
-        .select()
-        .single();
-
-      if (error) {
-        console.warn("Supabase Write Failed. Data saved locally only.", error.message);
-        return localUser;
-      }
-
-      return { 
-          username: data.wallet_address, 
-          balance: Number(data.balance),
-          avatarUrl: data.avatar_url || localUser.avatarUrl
-      };
+        .eq('wallet_address', walletAddress);
     } catch (err) {
-       console.warn("Supabase Exception. Data saved locally only.", err);
-       return localUser;
+        console.warn("Failed to sync balance to Supabase", err);
     }
+
+    return localResult;
   }
 }
 
-// --- FACTORY ---
-// WE USE THE KEYS PROVIDED BY THE USER AS DEFAULTS TO ENSURE IT WORKS
-const PROVIDED_URL = "https://wkblzroluuljlsklxyeb.supabase.co";
-const PROVIDED_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrYmx6cm9sdXVsamxza2x4eWViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1ODYxMzgsImV4cCI6MjA3OTE2MjEzOH0.HpPtkq8gGZGH0-WDMyoFMuTEZwU64j397NJNLBmld1A";
+// --- INIT LOGIC ---
 
-// Check process env first, then fall back to the hardcoded keys
-const envUrl = process.env.VITE_SUPABASE_URL || PROVIDED_URL;
-const envKey = process.env.VITE_SUPABASE_ANON_KEY || PROVIDED_KEY;
+// Hardcoded fallback keys provided by user
+const FALLBACK_URL = "https://wkblzroluuljlsklxyeb.supabase.co";
+const FALLBACK_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrYmx6cm9sdXVsamxza2x4eWViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1ODYxMzgsImV4cCI6MjA3OTE2MjEzOH0.HpPtkq8gGZGH0-WDMyoFMuTEZwU64j397NJNLBmld1A";
 
-let databaseInstance: DatabaseProvider;
+const envUrl = process.env.VITE_SUPABASE_URL;
+const envKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+const finalUrl = (envUrl && envUrl.length > 5) ? envUrl : FALLBACK_URL;
+const finalKey = (envKey && envKey.length > 5) ? envKey : FALLBACK_KEY;
+
+export let db: DatabaseProvider;
 export let isLive = false;
 
+// Safe Initialization
 try {
-  console.log("🟢 Initializing Database Connection...");
-  databaseInstance = new SupabaseAdapter(envUrl, envKey);
-  isLive = true;
+    if (finalUrl && finalKey) {
+        db = new SupabaseAdapter(finalUrl, finalKey);
+        // We assume it's live until it fails
+        isLive = true;
+    } else {
+        console.warn("Missing Supabase Credentials, running in Local Mode");
+        db = new LocalAdapter();
+        isLive = false;
+    }
 } catch (e) {
-  console.error("🔴 Supabase Initialization Failed:", e);
-  databaseInstance = new LocalAdapter();
-  isLive = false;
+    console.error("Database initialization crashed, recovering to Local Mode");
+    db = new LocalAdapter();
+    isLive = false;
 }
-
-export const db = databaseInstance;
