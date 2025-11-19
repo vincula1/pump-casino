@@ -47,17 +47,34 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const getPhantomProvider = () => {
+    if ('phantom' in window) {
+      const provider = (window as any).phantom?.solana;
+      if (provider?.isPhantom) {
+        return provider;
+      }
+    }
+    
+    // Fallback checks
+    const { solana } = window as any;
+    if (solana?.isPhantom) {
+        return solana;
+    }
+
+    return null;
+  };
+
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
-      const { solana } = window as any;
+      const provider = getPhantomProvider();
 
-      if (solana && solana.isPhantom) {
-        const response = await solana.connect();
+      if (provider) {
+        const response = await provider.connect();
         const publicKey = response.publicKey.toString();
         setUser({ username: publicKey, balance: INITIAL_BALANCE });
       } else {
-        alert("Phantom Wallet not found! Please install the Phantom extension.");
+        // If Phantom is not installed, open the website
         window.open("https://phantom.app/", "_blank");
       }
     } catch (err) {
@@ -68,10 +85,13 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // Disconnect logic if needed, for now just clear state
-    const { solana } = window as any;
-    if (solana) {
-        solana.disconnect(); 
+    const provider = getPhantomProvider();
+    if (provider) {
+        try {
+            provider.disconnect(); 
+        } catch(e) {
+            console.log("Disconnect error", e);
+        }
     }
     setUser(null);
     setCurrentGame(null);
@@ -120,24 +140,15 @@ const App: React.FC = () => {
           <button 
             onClick={connectWallet}
             disabled={isConnecting}
-            className="w-full group relative overflow-hidden rounded-xl bg-[#AB9FF2] hover:bg-[#9f91ef] transition-all duration-200 p-4 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(171,159,242,0.3)] hover:shadow-[0_0_30px_rgba(171,159,242,0.5)] hover:-translate-y-1 active:translate-y-0"
+            className="w-full group relative overflow-hidden rounded-xl bg-[#551BF9] hover:bg-[#6640f5] transition-all duration-200 p-4 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(85,27,249,0.3)] hover:shadow-[0_0_30px_rgba(85,27,249,0.5)] hover:-translate-y-1 active:translate-y-0"
           >
              {isConnecting ? (
-                <span className="text-indigo-900 font-bold">Connecting...</span>
+                <span className="text-white font-bold">Connecting...</span>
              ) : (
                <>
-                 {/* Simple Phantom Icon SVG Representation */}
-                 <svg className="w-6 h-6" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-                   <path d="M107.6 29.6C96.2 17.6 80.6 11 64 11C38.2 11 16.4 27.8 9.6 51.4L1.8 78.4C-1.4 89.4 7.2 100 18.6 100H109.4C119.2 100 126.8 91.6 126.2 81.8L123.8 47.2C123.2 40.4 117.4 35.2 110.8 34.8H107.6V29.6Z" fill="#4B4699"/>
-                   <path d="M107.6 29.6C96.2 17.6 80.6 11 64 11C38.2 11 16.4 27.8 9.6 51.4L1.8 78.4C-1.4 89.4 7.2 100 18.6 100H109.4C119.2 100 126.8 91.6 126.2 81.8L123.8 47.2C123.2 40.4 117.4 35.2 110.8 34.8H107.6V29.6Z" fill="url(#paint0_linear)"/>
-                   <path d="M37 67C37 70.866 33.866 74 30 74C26.134 74 23 70.866 23 67C23 63.134 26.134 60 30 60C33.866 60 37 63.134 37 67Z" fill="white"/>
-                   <path d="M74 67C74 70.866 70.866 74 67 74C63.134 74 60 70.866 60 67C60 63.134 63.134 60 67 60C70.866 60 74 63.134 74 67Z" fill="white"/>
-                   <defs>
-                     <linearGradient id="paint0_linear" x1="64" y1="11" x2="64" y2="100" gradientUnits="userSpaceOnUse">
-                       <stop stopColor="#5F4DCD"/>
-                       <stop offset="1" stopColor="#9B8AF9"/>
-                     </linearGradient>
-                   </defs>
+                 {/* Official Phantom Ghost Logo */}
+                 <svg width="28" height="24" viewBox="0 0 57 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M47.0372 12.9065C42.5103 4.59761 33.7909 0 25.0989 0C10.8416 0 0.00537109 11.9876 0.00537109 27.6969C0.00537109 31.0015 0.502497 34.2262 1.41166 37.2889C2.11904 39.6704 4.66609 41.0272 7.08359 40.5539C9.67111 40.0487 11.3965 37.6059 11.0009 34.9966C10.5862 32.2641 10.1906 29.6979 10.1906 27.4818C10.1906 20.171 15.1053 13.5087 21.9549 11.552C30.2228 9.18673 38.6532 15.3363 38.6532 23.934C38.6532 24.8156 38.5287 25.6541 38.3209 26.4712C37.7808 28.5999 39.0687 30.7931 41.1874 31.4166L50.9919 34.3195C54.6478 35.4157 58.0753 31.7604 56.4757 28.2556L53.8583 22.5015C53.6713 22.093 53.4428 21.6845 53.2143 21.2975C51.5109 18.1796 49.426 15.2502 47.0372 12.9065ZM17.4475 24.02C17.4475 25.7832 18.8602 27.2023 20.6259 27.2023C22.3706 27.2023 23.8043 25.7832 23.8043 24.02C23.8043 22.2568 22.3706 20.8377 20.6259 20.8377C18.8602 20.8377 17.4475 22.2568 17.4475 24.02ZM32.7119 24.02C32.7119 25.7832 34.1246 27.2023 35.8903 27.2023C37.6561 27.2023 39.0897 25.7832 39.0897 24.02C39.0897 22.2568 37.6561 20.8377 35.8903 20.8377C34.1246 20.8377 32.7119 22.2568 32.7119 24.02Z" fill="white"/>
                  </svg>
                  <span className="text-white font-bold text-lg tracking-wide">Connect Phantom</span>
                </>
