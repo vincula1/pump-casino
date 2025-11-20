@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
-import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface SlotsProps {
   onEndGame: (winnings: number) => void;
@@ -12,183 +12,302 @@ interface SlotsProps {
 // --- HIGH QUALITY SVG SYMBOLS ---
 
 const SymbolSeven = () => (
-    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(220,38,38,0.5)]">
+    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-xl">
         <defs>
             <linearGradient id="grad7" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#ef4444" />
-                <stop offset="100%" stopColor="#991b1b" />
+                <stop offset="50%" stopColor="#b91c1c" />
+                <stop offset="100%" stopColor="#7f1d1d" />
             </linearGradient>
+            <filter id="glow7">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
         </defs>
-        <path d="M20 20 H80 L55 85" stroke="url(#grad7)" strokeWidth="18" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M20 20 H80 L55 85" stroke="rgba(255,255,255,0.4)" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M20 20 H80 L55 85" stroke="url(#grad7)" strokeWidth="20" fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow7)" />
+        <path d="M20 20 H80 L55 85" stroke="#fca5a5" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
     </svg>
 );
 
 const SymbolCherry = () => (
-    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-        <path d="M50 20 Q70 5 75 35 L80 60" stroke="#15803d" strokeWidth="6" fill="none" strokeLinecap="round" />
-        <path d="M50 20 Q30 5 25 35 L20 60" stroke="#15803d" strokeWidth="6" fill="none" strokeLinecap="round" />
-        <circle cx="25" cy="65" r="16" fill="#dc2626" />
-        <circle cx="75" cy="65" r="16" fill="#dc2626" />
-        <circle cx="20" cy="60" r="5" fill="white" opacity="0.4" />
-        <circle cx="70" cy="60" r="5" fill="white" opacity="0.4" />
+    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-xl">
+        <path d="M50 20 Q70 5 75 35 L80 60" stroke="#15803d" strokeWidth="8" fill="none" strokeLinecap="round" />
+        <path d="M50 20 Q30 5 25 35 L20 60" stroke="#15803d" strokeWidth="8" fill="none" strokeLinecap="round" />
+        <circle cx="25" cy="65" r="18" fill="#dc2626" stroke="#7f1d1d" strokeWidth="2" />
+        <circle cx="75" cy="65" r="18" fill="#dc2626" stroke="#7f1d1d" strokeWidth="2" />
+        <circle cx="18" cy="60" r="6" fill="white" opacity="0.4" />
+        <circle cx="68" cy="60" r="6" fill="white" opacity="0.4" />
     </svg>
 );
 
 const SymbolDiamond = () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_15px_rgba(56,189,248,0.8)]">
-        <defs>
-            <linearGradient id="gradDiamond" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#38bdf8" />
-                <stop offset="100%" stopColor="#0284c7" />
-            </linearGradient>
-        </defs>
-        <path d="M50 10 L90 45 L50 90 L10 45 Z" fill="url(#gradDiamond)" stroke="#bae6fd" strokeWidth="2" />
-        <path d="M50 10 L50 90 M10 45 L90 45" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+        <path d="M50 10 L90 45 L50 90 L10 45 Z" fill="#0ea5e9" stroke="#e0f2fe" strokeWidth="4" />
+        <path d="M25 45 L50 90 L75 45 L50 10 Z" fill="#7dd3fc" opacity="0.5" />
+        <path d="M10 45 H90" stroke="#e0f2fe" strokeWidth="2" />
     </svg>
 );
 
-const SymbolLemon = () => (
-    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-         <ellipse cx="50" cy="50" rx="35" ry="25" fill="#facc15" stroke="#ca8a04" strokeWidth="2" transform="rotate(-15, 50, 50)" />
-         <path d="M20 55 Q50 45 80 45" stroke="rgba(255,255,255,0.4)" strokeWidth="3" fill="none" transform="rotate(-15, 50, 50)" />
-         <circle cx="85" cy="20" r="8" fill="#166534" />
-         <path d="M85 20 Q75 35 60 30" stroke="#166534" strokeWidth="3" fill="none" />
+const SymbolBar = () => (
+    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-xl">
+        <rect x="5" y="30" width="90" height="40" rx="6" fill="#f59e0b" stroke="#b45309" strokeWidth="4" />
+        <rect x="10" y="35" width="80" height="30" rx="4" fill="#fbbf24" />
+        <text x="50" y="62" textAnchor="middle" fontSize="28" fontWeight="900" fill="#78350f" fontFamily="sans-serif" letterSpacing="4">BAR</text>
+    </svg>
+);
+
+const SymbolBell = () => (
+    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-xl">
+        <path d="M50 10 Q80 10 85 70 H15 Q20 10 50 10 Z" fill="#eab308" stroke="#a16207" strokeWidth="3" />
+        <circle cx="50" cy="70" r="8" fill="#a16207" />
+        <path d="M50 10 Q25 10 25 70" fill="none" stroke="#fde047" strokeWidth="4" opacity="0.5" />
     </svg>
 );
 
 const SYMBOLS = [
-    { id: '7', component: SymbolSeven, multiplier: 50 },
-    { id: 'D', component: SymbolDiamond, multiplier: 25 },
-    { id: 'C', component: SymbolCherry, multiplier: 10 },
-    { id: 'L', component: SymbolLemon, multiplier: 5 },
+    { id: 'seven', component: SymbolSeven, payout: 50 },
+    { id: 'diamond', component: SymbolDiamond, payout: 25 },
+    { id: 'bar', component: SymbolBar, payout: 15 },
+    { id: 'bell', component: SymbolBell, payout: 12 },
+    { id: 'cherry', component: SymbolCherry, payout: 5 },
 ];
+
+// --- REEL LOGIC ---
+
+const SYMBOL_HEIGHT = 128; // Height in pixels
+const VISIBLE_SYMBOLS = 1;
+const REEL_STRIP_LENGTH = 40; // How many symbols in the strip
+
+// Generate a random strip
+const generateStrip = () => {
+    return Array.from({ length: REEL_STRIP_LENGTH }, () => 
+        Math.floor(Math.random() * SYMBOLS.length)
+    );
+};
+
+const Reel = ({ 
+  isSpinning, 
+  stopIndex, 
+  delay, 
+  onStop 
+}: { 
+  isSpinning: boolean, 
+  stopIndex: number, // The SYMBOL index (0-4) we want to land on
+  delay: number, 
+  onStop: () => void 
+}) => {
+    const [strip, setStrip] = useState<number[]>(generateStrip());
+    const [translateY, setTranslateY] = useState(0);
+    const [transition, setTransition] = useState('none');
+
+    useEffect(() => {
+        // Initialize position: Center the first symbol
+        setTranslateY(0);
+    }, []);
+
+    useEffect(() => {
+        if (isSpinning) {
+            // 1. Prepare the strip
+            // We want the final symbol (at bottom of strip) to be 'stopIndex'
+            // Let's regenerate strip so the last item is stopIndex
+            const newStrip = generateStrip();
+            newStrip[newStrip.length - 1] = stopIndex;
+            // Ensure the top of the new strip matches the bottom of the old one for continuity?
+            // For simplicity, we just hard reset to 0 (top) then spin to bottom
+            
+            setStrip(newStrip);
+            setTranslateY(0);
+            setTransition('none');
+
+            // 2. Trigger Spin after a tiny delay to allow DOM to register reset
+            setTimeout(() => {
+                // Spin to the end of the strip
+                // We want the last symbol to align. 
+                // Height of strip = length * SYMBOL_HEIGHT
+                // Final Y = -(length - 1) * SYMBOL_HEIGHT
+                const finalY = -((newStrip.length - 1) * SYMBOL_HEIGHT);
+                
+                setTransition(`transform ${2 + (delay/1000)}s cubic-bezier(0.2, 0.1, 0.1, 1)`);
+                setTranslateY(finalY);
+
+                // 3. Callback when done
+                setTimeout(() => {
+                   onStop();
+                }, (2000 + delay)); // Duration matches css
+            }, 50);
+        }
+    }, [isSpinning, stopIndex, delay]);
+
+    return (
+        <div className="relative w-full h-32 bg-slate-900 overflow-hidden rounded-lg border-x-2 border-slate-800 shadow-inner">
+             <div 
+                className="w-full flex flex-col items-center"
+                style={{
+                    transform: `translateY(${translateY}px)`,
+                    transition: transition
+                }}
+             >
+                 {strip.map((symbolIdx, i) => {
+                     const Sym = SYMBOLS[symbolIdx].component;
+                     return (
+                         <div key={i} className="h-32 w-full flex items-center justify-center p-4">
+                             <Sym />
+                         </div>
+                     );
+                 })}
+             </div>
+             {/* Overlay Shadow for depth */}
+             <div className="absolute inset-0 pointer-events-none shadow-[inset_0_10px_30px_rgba(0,0,0,0.8),inset_0_-10px_30px_rgba(0,0,0,0.8)]"></div>
+             {/* Shine */}
+             <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
+        </div>
+    );
+};
+
 
 export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
   const [bet, setBet] = useState(10);
-  const [reels, setReels] = useState([SYMBOLS[0], SYMBOLS[0], SYMBOLS[0]]);
-  const [spinning, setSpinning] = useState(false);
-  const [result, setResult] = useState<{ status: 'WIN' | 'LOSE', amount: number } | null>(null);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [results, setResults] = useState<number[]>([0, 1, 2]);
   const [aiCommentary, setAiCommentary] = useState('');
+  const [winLine, setWinLine] = useState<boolean | null>(null);
+  const [winAmount, setWinAmount] = useState(0);
 
   const triggerAI = async (context: string) => {
     const msg = await generateHypeMessage(context);
     setAiCommentary(msg);
   };
 
-  const spin = () => {
-    if (balance < bet || spinning) return;
+  const handleSpin = () => {
+    if (balance < bet || isSpinning) return;
     playSound('click');
     onEndGame(-bet);
-    setSpinning(true);
-    setResult(null);
+    setIsSpinning(true);
+    setWinLine(null);
+    setWinAmount(0);
     setAiCommentary('');
-    
-    let iterations = 0;
-    const maxIterations = 20;
-    
-    const interval = setInterval(() => {
-        setReels(reels.map(() => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]));
-        playSound('tick');
-        iterations++;
-        if (iterations >= maxIterations) {
-            clearInterval(interval);
-            finalizeSpin();
-        }
-    }, 100);
+
+    // Determine results immediately
+    const r1 = Math.floor(Math.random() * SYMBOLS.length);
+    const r2 = Math.floor(Math.random() * SYMBOLS.length);
+    const r3 = Math.floor(Math.random() * SYMBOLS.length);
+    setResults([r1, r2, r3]);
+
+    playSound('spin');
   };
 
-  const finalizeSpin = () => {
-      const finalReels = [
-          SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-          SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-          SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
-      ];
-      
-      setReels(finalReels);
-      setSpinning(false);
-      playSound('spin');
+  const handleReelStop = (reelIndex: number) => {
+      playSound('chip');
+      if (reelIndex === 2) {
+          setIsSpinning(false);
+          checkWin();
+      }
+  };
 
-      const allSame = finalReels[0].id === finalReels[1].id && finalReels[1].id === finalReels[2].id;
-      
-      if (allSame) {
-          const win = bet * finalReels[0].multiplier;
+  const checkWin = () => {
+      const [i1, i2, i3] = results;
+      let win = 0;
+      let isWin = false;
+
+      // 3 of a kind
+      if (i1 === i2 && i2 === i3) {
+          win = bet * SYMBOLS[i1].payout;
+          isWin = true;
+      } 
+      // 2 of a kind (Any 2 match)
+      else if (i1 === i2 || i2 === i3 || i1 === i3) {
+          const matchIdx = i1 === i2 ? i1 : i3;
+          win = bet * 2;
+          isWin = true;
+      }
+
+      if (isWin) {
+          setWinLine(true);
+          setWinAmount(win);
           onEndGame(win);
-          setResult({ status: 'WIN', amount: win - bet });
           playSound('win');
-          triggerAI(`Jackpot! 3x ${finalReels[0].id} hit!`);
+          triggerAI(`Slots Jackpot! Player won ${win}!`);
       } else {
-          setResult({ status: 'LOSE', amount: -bet });
-          playSound('lose');
-          triggerAI("Unlucky spin.");
+          setWinLine(false);
+          triggerAI("Slots cold. Try again.");
       }
   };
 
   return (
     <div className="flex flex-col items-center w-full max-w-4xl mx-auto p-4">
-      
-      {/* AI Toast */}
-      <div className="h-12 flex items-center justify-center w-full">
-          {aiCommentary && <span className="text-gold-400 bg-slate-900/80 px-4 py-1 rounded-full text-sm border border-gold-500/30 animate-fade-in">{aiCommentary}</span>}
-      </div>
+        <div className="h-10 mb-4 flex items-center justify-center w-full">
+          {aiCommentary && <span className="text-gold-400 bg-slate-900/80 px-6 py-1 rounded-full border border-gold-500/30 animate-fade-in shadow-[0_0_15px_rgba(251,191,36,0.2)]">{aiCommentary}</span>}
+        </div>
 
-      {/* Machine */}
-      <div className="bg-slate-900 p-6 md:p-10 rounded-[3rem] border-4 border-slate-800 shadow-2xl w-full max-w-2xl relative">
-          
-          {result && <ResultOverlay result={result.status} amount={result.amount} />}
+        {/* CASINO CABINET FRAME */}
+        <div className="relative bg-slate-800 p-6 md:p-10 rounded-[40px] border-4 border-slate-700 shadow-[0_0_100px_rgba(0,0,0,0.5)] w-full max-w-3xl">
+            
+            {/* Neon Top Light */}
+            <div className={`absolute -top-3 left-1/2 -translate-x-1/2 w-2/3 h-4 rounded-full blur-md transition-all duration-500 ${winLine ? 'bg-emerald-500 shadow-[0_0_40px_#10b981]' : 'bg-purple-600/30'}`}></div>
 
-          {/* Reels Container */}
-          <div className="flex gap-2 md:gap-4 bg-black p-4 rounded-2xl border-4 border-slate-700 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] relative overflow-hidden h-48 md:h-64 items-center justify-center">
-               
-               {/* Payline */}
-               <div className="absolute w-full h-1 bg-red-500/40 top-1/2 -translate-y-1/2 z-10 pointer-events-none"></div>
-               
-               {reels.map((symbol, index) => (
-                   <div key={index} className="flex-1 h-full bg-gradient-to-b from-slate-200 to-slate-400 rounded-lg flex items-center justify-center border-x-2 border-slate-500 relative overflow-hidden">
-                       <div className={`w-20 h-20 md:w-32 md:h-32 transition-all ${spinning ? 'animate-bounce blur-[2px] opacity-80' : 'scale-100'}`}>
-                            <symbol.component />
-                       </div>
-                       {/* Glare */}
-                       <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-black/20 pointer-events-none"></div>
-                   </div>
-               ))}
-          </div>
+            {/* Logo Area */}
+            <div className="text-center mb-6">
+                <h2 className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-gold-300 to-gold-600 drop-shadow-sm">
+                    NEON SLOTS
+                </h2>
+            </div>
 
-          {/* Controls */}
-          <div className="mt-8 flex flex-col md:flex-row gap-6 items-stretch">
-              <div className="flex-1 bg-slate-800 p-4 rounded-xl border border-slate-700">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Bet Amount</label>
-                  <div className="flex items-center mt-1">
-                      <span className="text-gold-500 text-lg font-bold mr-2">$</span>
-                      <input 
-                        type="number" 
-                        value={bet}
-                        onChange={e => setBet(Number(e.target.value))}
-                        disabled={spinning}
-                        className="bg-transparent text-white font-mono text-2xl w-full outline-none"
-                      />
-                  </div>
-              </div>
-              <Button 
-                variant="gold" 
-                className="w-full md:w-48 text-2xl font-black tracking-widest shadow-[0_0_20px_rgba(251,191,36,0.3)]"
-                onClick={spin}
-                disabled={spinning || balance < bet}
-              >
-                  {spinning ? '...' : 'SPIN'}
-              </Button>
-          </div>
+            {/* REELS CONTAINER */}
+            <div className="bg-slate-950 p-4 rounded-2xl border-8 border-slate-800 relative shadow-2xl overflow-hidden">
+                 
+                 {/* Glass Reflection */}
+                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none z-30 rounded-lg"></div>
 
-          {/* Legend */}
-          <div className="mt-6 grid grid-cols-4 gap-2 text-center">
-              {SYMBOLS.map(s => (
-                  <div key={s.id} className="bg-slate-800/50 p-2 rounded-lg border border-slate-700 flex flex-col items-center">
-                      <div className="w-6 h-6 mb-1"><s.component /></div>
-                      <span className="text-[10px] font-bold text-gold-400">{s.multiplier}x</span>
-                  </div>
-              ))}
-          </div>
-      </div>
+                 {/* The Reels */}
+                 <div className="grid grid-cols-3 gap-2 md:gap-4 relative z-10">
+                      <Reel isSpinning={isSpinning} stopIndex={results[0]} delay={0} onStop={() => handleReelStop(0)} />
+                      <Reel isSpinning={isSpinning} stopIndex={results[1]} delay={200} onStop={() => handleReelStop(1)} />
+                      <Reel isSpinning={isSpinning} stopIndex={results[2]} delay={400} onStop={() => handleReelStop(2)} />
+
+                      {/* Payline Bar */}
+                      <div className={`absolute top-1/2 left-0 w-full h-1 -translate-y-1/2 bg-red-600/60 z-20 pointer-events-none transition-opacity duration-300 ${winLine ? 'opacity-100 shadow-[0_0_15px_#dc2626]' : 'opacity-0'}`}></div>
+                 </div>
+            </div>
+
+            {/* Info / Win Display */}
+            <div className="mt-6 mb-6 h-16 bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center">
+                {winAmount > 0 ? (
+                    <div className="text-4xl font-black text-emerald-400 animate-bounce drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]">
+                        WIN ${winAmount}
+                    </div>
+                ) : (
+                    <div className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+                        {isSpinning ? 'GOOD LUCK...' : 'PRESS SPIN TO START'}
+                    </div>
+                )}
+            </div>
+
+            {/* Controls */}
+            <div className="grid grid-cols-2 gap-6">
+                <div className="bg-slate-900 rounded-xl p-2 border border-slate-700 flex flex-col justify-center px-4">
+                    <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Bet Size</div>
+                    <div className="flex items-center">
+                        <span className="text-gold-500 mr-1">$</span>
+                        <input 
+                            type="number" 
+                            value={bet} 
+                            onChange={e => setBet(Number(e.target.value))}
+                            disabled={isSpinning}
+                            className="w-full bg-transparent text-white font-mono text-xl font-bold outline-none"
+                        />
+                    </div>
+                </div>
+                <Button 
+                    variant="gold" 
+                    onClick={handleSpin}
+                    disabled={isSpinning || balance < bet}
+                    className={`h-20 text-2xl font-black tracking-widest shadow-[0_6px_0_#b45309] active:shadow-none active:translate-y-[6px] transition-all rounded-xl ${isSpinning ? 'brightness-75' : 'hover:brightness-110'}`}
+                >
+                    SPIN
+                </Button>
+            </div>
+
+        </div>
     </div>
   );
 };
