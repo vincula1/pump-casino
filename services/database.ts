@@ -1,6 +1,6 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User } from '../types';
+import { User, LeaderboardEntry } from '../types';
 import { INITIAL_BALANCE } from '../constants';
 import { storageService } from './storageService';
 
@@ -111,5 +111,39 @@ export const db = {
          // Silent fail on sync, local state is updated
       }
     }
+  },
+
+  getLeaderboard: async (): Promise<LeaderboardEntry[]> => {
+    if (isLive && supabase) {
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('wallet_address, balance')
+                .order('balance', { ascending: false })
+                .limit(20);
+
+            if (error) throw error;
+
+            return (data || []).map((u, index) => ({
+                username: u.wallet_address,
+                winnings: u.balance,
+                rank: index + 1
+            }));
+        } catch (e) {
+            console.error("Failed to fetch leaderboard", e);
+            return [];
+        }
+    }
+    
+    // Local storage fallback for offline mode
+    const localUser = storageService.getUser();
+    if (localUser) {
+        return [{
+            username: localUser.username,
+            winnings: localUser.balance,
+            rank: 1
+        }];
+    }
+    return [];
   }
 };

@@ -176,6 +176,8 @@ const App: React.FC = () => {
         const provider = getPhantomProvider();
         if (provider) {
             await provider.disconnect();
+            // Give it a moment to process
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
     } catch (e) {
         console.warn("Provider disconnect error", e);
@@ -242,9 +244,14 @@ const App: React.FC = () => {
              </button>
 
              {/* Footer info */}
-             <div className="mt-8 flex items-center gap-2 text-slate-500 text-xs font-medium">
-                <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-slate-600'} animate-pulse`}></span>
-                {isLive ? 'System Online' : 'Local Mode'}
+             <div className="mt-8 flex flex-col items-center gap-2 text-slate-500 text-xs font-medium">
+                <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-slate-600'} animate-pulse`}></span>
+                    {isLive ? 'System Online' : 'Local Mode'}
+                </div>
+                <p className="opacity-60 text-[10px] max-w-[200px]">
+                    Tip: To switch wallets, change account in your Phantom extension after disconnecting.
+                </p>
              </div>
          </div>
       </div>
