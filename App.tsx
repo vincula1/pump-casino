@@ -19,8 +19,7 @@ const App: React.FC = () => {
   const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
   const [totalOnline, setTotalOnline] = useState<number>(0);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [phantomAvailable, setPhantomAvailable] = useState(false);
-
+  
   // Initialize Member Counts (Deterministic Simulation)
   useEffect(() => {
     const updateCounts = () => {
@@ -82,19 +81,17 @@ const App: React.FC = () => {
     return null;
   };
 
-  // ROBUST WALLET CHECKER
-  // Checks for Phantom injection repeatedly on load to ensure we catch it
+  // CHECKER: More aggressive checks at startup to find wallet
   useEffect(() => {
     let attempts = 0;
     const checkProvider = setInterval(() => {
         attempts++;
         const provider = getPhantomProvider();
         if (provider) {
-            setPhantomAvailable(true);
             initWallet(provider);
             clearInterval(checkProvider);
         }
-        if (attempts > 10) clearInterval(checkProvider); // Stop after 5 seconds
+        if (attempts > 20) clearInterval(checkProvider); // Try for 10 seconds
     }, 500);
     
     return () => clearInterval(checkProvider);
@@ -110,7 +107,6 @@ const App: React.FC = () => {
             const response = await provider.connect({ onlyIfTrusted: true });
             if (response.publicKey) {
                 const walletAddr = response.publicKey.toString();
-                console.log("Auto-connected:", walletAddr);
                 const userAccount = await db.getUser(walletAddr);
                 setUser(userAccount);
             }
@@ -120,14 +116,15 @@ const App: React.FC = () => {
     }
     
     // Setup listeners
+    provider.removeAllListeners('accountChanged'); // Prevent duplicate listeners
     provider.on('accountChanged', async (publicKey: any) => {
             if (publicKey) {
-                console.log("Wallet Switched:", publicKey.toString());
-                localStorage.removeItem('explicitDisconnect'); // Reset disconnect flag on switch
+                // User switched accounts in wallet
+                localStorage.removeItem('explicitDisconnect'); 
                 const userAccount = await db.getUser(publicKey.toString());
                 setUser(userAccount);
             } else {
-                // Phantom locked or disconnected
+                // Phantom locked or disconnected via extension
                 setUser(null);
             }
     });
@@ -140,10 +137,11 @@ const App: React.FC = () => {
 
       if (provider) {
         try {
+          // Force connection prompt
           const response = await provider.connect();
           const publicKey = response.publicKey.toString();
           
-          // Remove the disconnect flag since user explicitly connected
+          // IMPORTANT: Clear the disconnect flag so auto-connect works next time
           localStorage.removeItem('explicitDisconnect');
           
           const userAccount = await db.getUser(publicKey);
@@ -163,6 +161,14 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    // 1. Update state immediately
+    setUser(null);
+    setCurrentGame(null);
+
+    // 2. Set flag to prevent auto-reconnect on refresh
+    localStorage.setItem('explicitDisconnect', 'true');
+
+    // 3. Attempt to disconnect provider (if supported)
     try {
         const provider = getPhantomProvider();
         if (provider) {
@@ -171,12 +177,6 @@ const App: React.FC = () => {
     } catch (e) {
         console.warn("Provider disconnect error", e);
     }
-    
-    // Set flag so we don't auto-reconnect on refresh
-    localStorage.setItem('explicitDisconnect', 'true');
-    
-    setUser(null);
-    setCurrentGame(null);
   };
 
   const updateBalance = async (amount: number) => {
@@ -218,14 +218,14 @@ const App: React.FC = () => {
              <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
                 <div className="absolute inset-0 bg-gold-500/20 rounded-full blur-xl animate-pulse"></div>
                 <div className="w-20 h-20 border-4 border-slate-800 rounded-full relative z-10 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl">
-                     <div className="w-8 h-8 border-2 border-gold-500 transform rotate-45"></div>
+                     <div className="w-8 h-8 bg-gold-500 rounded rotate-45 shadow-[0_0_15px_#fbbf24]"></div>
                 </div>
                 <div className="absolute inset-0 border-t-4 border-gold-500 rounded-full animate-spin-slow"></div>
              </div>
           </div>
 
           <div className="text-center mb-10">
-            <h1 className="text-5xl font-black text-white mb-2 tracking-tighter font-sans">PUMP<span className="text-gold-500">.</span>CASINO</h1>
+            <h1 className="text-5xl font-black text-white mb-2 tracking-tighter font-sans">PUMP<span className="text-emerald-500">.</span>CASINO</h1>
             <p className="text-slate-400 font-medium text-sm tracking-wide uppercase">Next Gen Crypto Gaming</p>
           </div>
           
@@ -255,7 +255,7 @@ const App: React.FC = () => {
           
           <div className="mt-8 text-center text-xs text-slate-600 font-medium max-w-xs">
              By connecting, you agree to the Terms. <br/>
-             <span className="opacity-50 text-[10px]">Tip: Check browser console if database isn't syncing.</span>
+             <span className="opacity-50 text-[10px]">{isLive ? 'System Online' : 'Offline Mode Active (DB Table Missing)'}</span>
           </div>
         </div>
       </div>
