@@ -9,10 +9,11 @@ import { Slots } from './games/Slots';
 import { Roulette } from './games/Roulette';
 import { Crash } from './games/Crash';
 import { Mines } from './games/Mines';
-import { User, GameType } from './types';
+import { User, GameType, GameEvent } from './types';
 import { GAME_CONFIGS } from './constants';
 import { db, isLive, supabase } from './services/database'; 
 import { Logo } from './components/ui/Logo';
+import { LiveFeed } from './components/LiveFeed';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,6 +21,7 @@ const App: React.FC = () => {
   const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
   const [totalOnline, setTotalOnline] = useState<number>(1); // Start with 1 (yourself)
   const [isConnecting, setIsConnecting] = useState(false);
+  const [recentEvents, setRecentEvents] = useState<GameEvent[]>([]);
   
   // Realtime Presence Logic
   useEffect(() => {
@@ -157,26 +159,18 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    // 1. Flag disconnection to prevent auto-reconnect loop
     localStorage.setItem('explicitDisconnect', 'true');
-    
-    // 2. Clear local state
     setUser(null);
     setCurrentGame(null);
-
-    // 3. Force deep disconnect from provider
     try {
         const provider = getPhantomProvider();
         if (provider) {
             await provider.disconnect();
-            // Give it a moment to process
             await new Promise(resolve => setTimeout(resolve, 100));
         }
     } catch (e) {
         console.warn("Provider disconnect error", e);
     }
-
-    // 4. Reload page to ensure clean state for next login
     window.location.reload();
   };
 
@@ -188,14 +182,41 @@ const App: React.FC = () => {
     }
   };
 
+  const handleGameEvent = (event: GameEvent) => {
+    // Add to local feed
+    setRecentEvents(prev => [...prev, event]);
+
+    // If Big Win (Multiplier >= 10 or Win > $1000), broadcast to global chat
+    if (event.isWin && (event.multiplier && event.multiplier >= 10 || event.payout >= 1000)) {
+        const formattedUser = event.username.length > 10 ? `${event.username.slice(0,4)}...${event.username.slice(-4)}` : event.username;
+        
+        db.broadcastMessage({
+            id: Date.now().toString(),
+            username: 'System',
+            message: `🚀 BIG WIN! ${formattedUser} just won $${event.payout.toLocaleString()} on ${event.game}!`,
+            isBot: true,
+            isSystem: true,
+            avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=System&backgroundColor=0f172a"
+        });
+    }
+  };
+
   const renderGame = () => {
+    const commonProps = {
+        onEndGame: updateBalance,
+        balance: user!.balance,
+        // We cast username to string safely, although logic ensures user is present
+        currentUser: user?.username, 
+        onGameEvent: handleGameEvent
+    };
+
     switch (currentGame) {
-      case GameType.BLACKJACK: return <Blackjack onEndGame={updateBalance} balance={user!.balance} />;
-      case GameType.DICE: return <Dice onEndGame={updateBalance} balance={user!.balance} />;
-      case GameType.SLOTS: return <Slots onEndGame={updateBalance} balance={user!.balance} />;
-      case GameType.ROULETTE: return <Roulette onEndGame={updateBalance} balance={user!.balance} />;
-      case GameType.CRASH: return <Crash onEndGame={updateBalance} balance={user!.balance} />;
-      case GameType.MINES: return <Mines onEndGame={updateBalance} balance={user!.balance} />;
+      case GameType.BLACKJACK: return <Blackjack {...commonProps} />;
+      case GameType.DICE: return <Dice {...commonProps} />;
+      case GameType.SLOTS: return <Slots {...commonProps} />;
+      case GameType.ROULETTE: return <Roulette {...commonProps} />;
+      case GameType.CRASH: return <Crash {...commonProps} />;
+      case GameType.MINES: return <Mines {...commonProps} />;
       default: return null;
     }
   };
@@ -203,13 +224,10 @@ const App: React.FC = () => {
   if (!user) {
     return (
       <div className="fixed inset-0 w-full h-full bg-[#0f172a] flex flex-col items-center justify-center p-6 z-50 font-sans selection:bg-emerald-500/30">
-         {/* Background Gradients */}
          <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none"></div>
          <div className="absolute bottom-[-20%] right-[-20%] w-[70%] h-[70%] rounded-full bg-purple-500/10 blur-[120px] pointer-events-none"></div>
          
-         {/* Card */}
          <div className="relative z-10 w-full max-w-md bg-slate-900/80 backdrop-blur-2xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center">
-             {/* Logo Area */}
              <div className="mb-10 flex flex-col items-center gap-4">
                  <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
                     <span className="text-5xl drop-shadow-md">🎰</span>
@@ -220,7 +238,6 @@ const App: React.FC = () => {
                  </div>
              </div>
 
-             {/* Connect Button */}
              <button 
                 onClick={connectWallet}
                 disabled={isConnecting}
@@ -240,7 +257,6 @@ const App: React.FC = () => {
                 </div>
              </button>
 
-             {/* Footer info */}
              <div className="mt-8 flex flex-col items-center gap-2 text-slate-500 text-xs font-medium">
                 <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-slate-600'} animate-pulse`}></span>
@@ -262,6 +278,8 @@ const App: React.FC = () => {
       onNavigateHome={() => setCurrentGame(null)} 
       onlineCount={totalOnline}
     >
+      <LiveFeed events={recentEvents} />
+
       {currentGame ? (
         <div className="animate-fade-in">
           <div className="flex items-center mb-8 border-b border-slate-800 pb-6">

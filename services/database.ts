@@ -1,6 +1,6 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, LeaderboardEntry } from '../types';
+import { User, LeaderboardEntry, ChatMessage } from '../types';
 import { INITIAL_BALANCE } from '../constants';
 import { storageService } from './storageService';
 
@@ -145,5 +145,21 @@ export const db = {
         }];
     }
     return [];
+  },
+
+  // Send a message to the global chat channel
+  broadcastMessage: async (message: ChatMessage) => {
+      if (isLive && supabase) {
+          try {
+              const channel = supabase.channel('global_lounge');
+              await channel.send({
+                  type: 'broadcast',
+                  event: 'message',
+                  payload: message
+              });
+          } catch (e) {
+              console.error("Failed to broadcast", e);
+          }
+      }
   }
 };

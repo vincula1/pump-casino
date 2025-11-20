@@ -29,6 +29,16 @@ export interface ChatMessage {
   isSystem?: boolean;
 }
 
+export interface GameEvent {
+  id: string;
+  username: string;
+  game: GameType;
+  multiplier?: number;
+  payout: number;
+  isWin: boolean;
+  timestamp: number;
+}
+
 export enum CardSuit {
   HEARTS = '♥',
   DIAMONDS = '♦',
