@@ -10,7 +10,7 @@ import { Chat as GenAIChat } from "@google/genai";
 const AVATAR_BASE_URL = "https://api.dicebear.com/9.x/bottts-neutral/svg";
 
 const getAvatar = (username: string) => {
-    if (username === 'Casino Host') return `${AVATAR_BASE_URL}?seed=CasinoHost&backgroundColor=10b981&eyes=sensor`;
+    if (username === 'Ace') return `${AVATAR_BASE_URL}?seed=Ace&backgroundColor=10b981&eyes=sensor&mouth=smile`;
     if (username === 'System') return `${AVATAR_BASE_URL}?seed=System&backgroundColor=0f172a`;
     return `${AVATAR_BASE_URL}?seed=${username}`;
 };
@@ -20,7 +20,7 @@ const INITIAL_GLOBAL_MESSAGES: ChatMessage[] = [
 ];
 
 const INITIAL_AI_MESSAGES: ChatMessage[] = [
-  { id: 'init', username: 'Casino Host', message: 'Welcome, High Roller. I am here to advise you. Ask me about odds, strategies, or game rules.', isBot: true, avatar: getAvatar('Casino Host') }
+  { id: 'init', username: 'Ace', message: "Yo! I'm Ace. I track the tables and crunch the numbers. Ask me anything about strategies or odds.", isBot: true, avatar: getAvatar('Ace') }
 ];
 
 interface ChatProps {
@@ -28,16 +28,18 @@ interface ChatProps {
     username?: string;
 }
 
-// Fallback responses if AI is offline
+// Fallback responses if AI is offline (Ace Persona)
 const OFFLINE_RESPONSES = [
-    "The odds are always in the house's favor, but a smart player knows when to quit.",
-    "In Blackjack, always split Aces and Eights.",
-    "Martingale strategy is risky: doubling your bet after every loss requires a deep wallet.",
-    "For Roulette, betting on Red/Black gives you nearly 50% odds, excluding the Green zero.",
-    "I'm currently offline for maintenance, but my advice? Bet with your head, not over it.",
-    "A 50/50 chance is the best you'll get in a fair game. Good luck.",
-    "Never chase your losses. That's rule #1.",
-    "If you're looking for patterns in random numbers, you're looking for ghosts."
+    "House edge is real, fam. Quit while you're ahead.",
+    "Always split Aces and Eights. Basic math.",
+    "Martingale is a trap unless you have infinite bankroll.",
+    "Roulette? It's all random. Green zero is the dream killer.",
+    "I'm analyzing the chain... gimme a sec. Just play smart.",
+    "50/50 shots are the best you'll get here. Good luck.",
+    "Never chase losses. That's how you get rekt.",
+    "Pattern recognition in random numbers? That's a myth, bro.",
+    "Market's choppy. Bet small, win big.",
+    "WAGMI if you play your cards right."
 ];
 
 export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
@@ -99,18 +101,18 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
   const initChatSession = () => {
     try {
       if (!isGeminiConfigured()) {
-          console.warn("Gemini API Key is missing.");
+          // Silent return - usage of fallback responses
           return;
       }
       
       chatSession.current = ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
-          systemInstruction: "You are a sophisticated Strategic Gambling Advisor at 'Pump Casino'. You help users make decisions. Explain odds, suggest betting strategies (like Martingale, D'Alembert, Paroli), and clarify rules for Blackjack, Roulette, Slots, and Crash. Be concise (max 2 sentences). Be witty but helpful. If asked about the future, remind them it's random.",
+          systemInstruction: "You are 'Ace', a savvy, slang-using crypto gambler and advisor at 'Pump Casino'. You are NOT an AI assistant. You are a bro who loves high stakes. Speak casually, use crypto slang (wagmi, rekt, moon, paper hands). Keep advice mathematically sound but delivered informally. Max 2 sentences.",
         },
       });
     } catch (e) {
-      console.error("AI Init Error", e);
+      // Silent error
     }
   };
 
@@ -177,6 +179,9 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
         initChatSession();
       }
 
+      // Artificial delay for realism if using fallback
+      const delay = isGeminiConfigured() ? 0 : 1000 + Math.random() * 1000;
+
       try {
         if (chatSession.current && isGeminiConfigured()) {
           const response = await chatSession.current.sendMessage({ message: prompt });
@@ -185,41 +190,44 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
           if (responseText) {
               const aiMsg: ChatMessage = {
                 id: Date.now().toString() + '_ai',
-                username: 'Casino Host',
+                username: 'Ace',
                 message: responseText,
                 isBot: true,
-                avatar: getAvatar('Casino Host')
+                avatar: getAvatar('Ace')
               };
               setAiMessages(prev => [...prev, aiMsg]);
           } else {
               throw new Error("Empty response");
           }
         } else {
-            throw new Error("AI not configured or session null");
+            throw new Error("AI not configured");
         }
       } catch (error) {
-           console.warn("AI Error/Offline, using fallback", error);
-           
            // Select relevant fallback based on keywords
            let fallbackText = OFFLINE_RESPONSES[Math.floor(Math.random() * OFFLINE_RESPONSES.length)];
            const lowerPrompt = prompt.toLowerCase();
-           if (lowerPrompt.includes('blackjack')) fallbackText = "In Blackjack, basic strategy reduces the house edge to under 1%. Never take insurance.";
-           if (lowerPrompt.includes('roulette')) fallbackText = "Roulette is pure chance. The wheel has no memory.";
-           if (lowerPrompt.includes('martingale')) fallbackText = "Martingale works until it doesn't. Exponential growth hits table limits fast.";
+           if (lowerPrompt.includes('blackjack')) fallbackText = "Blackjack? Basic strategy says never take insurance. House edge is thin if you play perfect.";
+           if (lowerPrompt.includes('roulette')) fallbackText = "Roulette is pure chaos. The wheel has no memory, don't look for patterns.";
+           if (lowerPrompt.includes('martingale')) fallbackText = "Martingale is a quick way to get rekt. Exponential growth hits table limits fast.";
+           if (lowerPrompt.includes('win') || lowerPrompt.includes('lost')) fallbackText = "That's the game. Sometimes you moon, sometimes you crash.";
 
            const fallbackMsg: ChatMessage = {
             id: Date.now().toString() + '_fallback',
-            username: 'Casino Host',
+            username: 'Ace',
             message: fallbackText,
             isBot: true,
-            avatar: getAvatar('Casino Host')
+            avatar: getAvatar('Ace')
            };
            
            setTimeout(() => {
                setAiMessages(prev => [...prev, fallbackMsg]);
-           }, 800);
+           }, delay);
       } finally {
-          setIsTyping(false);
+          if (isGeminiConfigured()) {
+            setIsTyping(false);
+          } else {
+            setTimeout(() => setIsTyping(false), delay);
+          }
       }
     }
   };
@@ -238,7 +246,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
           onClick={() => setActiveTab('ai')}
           className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'ai' ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
         >
-          AI Advisor
+          Ask Ace (AI)
         </button>
       </div>
       
@@ -283,7 +291,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
             ))}
             {isTyping && (
               <div className="flex gap-3">
-                 <img src={getAvatar('Casino Host')} alt="AI" className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                 <img src={getAvatar('Ace')} alt="AI" className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
                  <div className="bg-slate-900/50 border border-slate-700 p-3 rounded-xl rounded-tl-none flex space-x-1 items-center h-10">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -302,7 +310,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={activeTab === 'global' ? "Message Global Lounge..." : "Ask for betting advice..."}
+          placeholder={activeTab === 'global' ? "Message Global Lounge..." : "Chat with Ace..."}
           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors placeholder-slate-500 text-sm"
         />
       </form>

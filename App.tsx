@@ -186,8 +186,9 @@ const App: React.FC = () => {
     // Add to local feed
     setRecentEvents(prev => [...prev, event]);
 
-    // If Big Win (Multiplier >= 10 or Win > $1000), broadcast to global chat
-    if (event.isWin && (event.multiplier && event.multiplier >= 10 || event.payout >= 1000)) {
+    // If Big Win (Multiplier >= 10 or Win > $500), broadcast to global chat
+    // Lowered threshold from $1000 to $500 to increase feed activity
+    if (event.isWin && (event.multiplier && event.multiplier >= 10 || event.payout >= 500)) {
         const formattedUser = event.username.length > 10 ? `${event.username.slice(0,4)}...${event.username.slice(-4)}` : event.username;
         
         db.broadcastMessage({
