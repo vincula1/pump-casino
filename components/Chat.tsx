@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { ai, isGeminiConfigured } from '../services/geminiService';
 import { supabase } from '../services/database';
-import { Chat as GeminiChat, RealtimeChannel } from '@supabase/supabase-js'; // Type import only
-import { ChatSession } from "@google/genai";
+import { RealtimeChannel } from '@supabase/supabase-js'; 
+import { Chat as GenAIChat } from "@google/genai";
 
 // Cyberpunk/Robot Avatar Style
 const AVATAR_BASE_URL = "https://api.dicebear.com/9.x/bottts-neutral/svg";
@@ -51,10 +51,10 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
   const aiEndRef = useRef<HTMLDivElement>(null);
   
   // Persist the Supabase channel
-  const channelRef = useRef<any>(null); // using any to avoid strict RealtimeChannel type issues in some environments
+  const channelRef = useRef<RealtimeChannel | null>(null);
   
   // Gemini Chat Instance
-  const chatSession = useRef<ChatSession | null>(null);
+  const chatSession = useRef<GenAIChat | null>(null);
 
   // --- 1. Realtime Global Chat Logic ---
   useEffect(() => {
@@ -90,7 +90,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
 
     return () => {
         if (channelRef.current) {
-            supabase.removeChannel(channelRef.current);
+            supabase?.removeChannel(channelRef.current);
         }
     };
   }, []);
