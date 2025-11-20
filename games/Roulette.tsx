@@ -12,9 +12,8 @@ interface RouletteProps {
   currentUser?: string;
 }
 
-// European Roulette Sequence (Standard)
+// European Roulette Sequence
 const WHEEL_NUMBERS = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-
 const RED_NUMBERS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 
 const getNumberColor = (num: number) => {
@@ -27,20 +26,16 @@ const getNumberColor = (num: number) => {
 const getSlicePath = (index: number, total: number, radius: number) => {
   const startAngle = (index * 360) / total;
   const endAngle = ((index + 1) * 360) / total;
-  
-  // Convert to radians, subtract 90deg to start at top (12 o'clock)
   const startRad = (startAngle - 90) * (Math.PI / 180);
   const endRad = (endAngle - 90) * (Math.PI / 180);
-
   const x1 = 50 + radius * Math.cos(startRad);
   const y1 = 50 + radius * Math.sin(startRad);
   const x2 = 50 + radius * Math.cos(endRad);
   const y2 = 50 + radius * Math.sin(endRad);
-
   return `M 50 50 L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`;
 };
 
-type BetType = 'red' | 'black' | 'green' | 'even' | 'odd';
+type BetType = 'red' | 'black' | 'green';
 
 export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, balance, currentUser }) => {
   const [betAmount, setBetAmount] = useState(10);
@@ -49,6 +44,11 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<{ number: number; color: string } | null>(null);
   const [aiCommentary, setAiCommentary] = useState('');
+
+  // Randomize initial position so it's not always 0 at start
+  useEffect(() => {
+      setRotation(Math.floor(Math.random() * 360));
+  }, []);
 
   const triggerAI = async (context: string) => {
       const msg = await generateHypeMessage(context);
@@ -64,48 +64,50 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
     setResult(null);
     setAiCommentary('');
 
-    // 1. Determine result upfront
+    // 1. Determine result
     const randomIndex = Math.floor(Math.random() * WHEEL_NUMBERS.length);
     const winningNumber = WHEEL_NUMBERS[randomIndex];
     const winningColor = getNumberColor(winningNumber);
 
     // 2. Calculate rotation
-    // Each slice is 360/37 degrees.
-    // The wheel index 0 is at the top (-90deg) in the SVG.
-    // To land index `i` at the top marker, we need to rotate the container.
-    // If index 0 is at 0deg (relative to wheel start), and we want index 5 at top, we rotate - (5 * slice).
-    
     const sliceAngle = 360 / 37;
-    // We add a random offset within the slice to make it look realistic (not always center of slice)
-    // The slice spans from `index * sliceAngle` to `(index+1) * sliceAngle`.
-    // The center of the slice is `index * sliceAngle + sliceAngle/2`.
+    // Target center of the slice
     const targetAngle = randomIndex * sliceAngle + (sliceAngle / 2);
     
-    const extraSpins = 5 + Math.floor(Math.random() * 3); // Minimum 5 spins
+    // Calculate spins
+    const extraSpins = 5 + Math.floor(Math.random() * 3); 
     
-    // We want the target angle to align with the top (0 degrees in CSS rotation terms if the pointer is at top).
-    // CSS Rotate 0 puts the wheel at its default. The pointer is at top.
-    // If number X is at angle A on the wheel, we need to rotate the wheel by (360 - A) to bring it to top.
+    // Current rotation might be huge, simplify it to mod 360 for calculation, but css needs additive
+    // Actually, just adding to current rotation ensures smooth transition
+    // We need the final rotation to be such that (finalRotation % 360) results in the correct alignment
+    // Alignment: To get `targetAngle` to Top (0deg), we need to rotate by `360 - targetAngle`.
     
-    const baseRotation = 360 - targetAngle;
-    const newRotation = rotation + (360 * extraSpins) + baseRotation - (rotation % 360);
-
-    // Adjust to ensure we always spin forward
-    const finalRotation = newRotation > rotation ? newRotation : newRotation + 360;
+    const targetRotationNormalized = (360 - targetAngle);
+    
+    // Calculate delta needed to reach next aligned position
+    const currentMod = rotation % 360;
+    let distance = targetRotationNormalized - currentMod;
+    if (distance < 0) distance += 360;
+    
+    // Add spins
+    const totalRotate = distance + (360 * extraSpins);
+    const finalRotation = rotation + totalRotate;
 
     setRotation(finalRotation);
     
     // Sound effect loop
     let spinTime = 0;
-    const totalDuration = 4000;
+    const totalDuration = 5000; // Increased duration for smoother slowdown
     const soundInterval = setInterval(() => {
-        spinTime += 150;
+        spinTime += 200;
         if (spinTime < totalDuration - 500) { 
+            // Decrease frequency of clicks as time goes on manually? 
+            // Or just play tick. The constant tick is okay for MVP.
              playSound('tick');
         } else {
             clearInterval(soundInterval);
         }
-    }, 150);
+    }, 200);
 
     setTimeout(() => {
       setSpinning(false);
@@ -137,7 +139,6 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
         triggerAI(`Roulette result: ${winningNumber} (${winningColor}). House wins.`);
       }
 
-      // Trigger Feed Event
       if (onGameEvent) {
         onGameEvent({
             id: Date.now().toString(),
@@ -169,35 +170,22 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
          {/* Rotating Part */}
          <div 
-            className="w-full h-full rounded-full transition-transform cubic-bezier(0.25, 0.1, 0.25, 1)"
+            className="w-full h-full rounded-full"
             style={{ 
                 transform: `rotate(${rotation}deg)`,
-                transitionDuration: spinning ? '4000ms' : '0ms'
+                transition: spinning ? 'transform 5s cubic-bezier(0.1, 0.05, 0.1, 1)' : 'none'
             }}
          >
             <svg viewBox="0 0 100 100" className="w-full h-full">
                 {WHEEL_NUMBERS.map((num, i) => {
                     const color = getNumberColor(num);
                     const fill = color === 'green' ? '#10b981' : color === 'red' ? '#ef4444' : '#1f2937';
-                    
-                    // 1. Angle of this slice (center)
                     const sliceAngle = 360 / 37;
                     const startAngle = i * sliceAngle;
                     const midAngle = startAngle + (sliceAngle / 2);
-                    
-                    // 2. Convert to Radians (subtract 90deg to align 0 at top 12 o'clock)
-                    // NOTE: SVG coordinates start at 3 o'clock (0 rads).
-                    // We want -90deg to be 0 index.
                     const midRad = (midAngle - 90) * (Math.PI / 180);
-                    
-                    // 3. Position for Text (Radius 40 to fit nicely)
                     const tx = 50 + 40 * Math.cos(midRad);
                     const ty = 50 + 40 * Math.sin(midRad);
-                    
-                    // 4. Text Rotation
-                    // We want text to point towards center.
-                    // Angle + 90 usually works for perpendicular, +90 again for inward facing depending on start.
-                    // Let's use midAngle.
                     const tRot = midAngle; 
 
                     return (
@@ -220,10 +208,8 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
                         </g>
                     );
                 })}
-                {/* Center Decoration */}
                 <circle cx="50" cy="50" r="18" fill="#0f172a" stroke="#fbbf24" strokeWidth="1" />
                 <circle cx="50" cy="50" r="2" fill="#fbbf24" />
-                {/* Inner decoration ring */}
                 <circle cx="50" cy="50" r="10" fill="none" stroke="#334155" strokeWidth="0.5" strokeDasharray="1 1" />
             </svg>
          </div>

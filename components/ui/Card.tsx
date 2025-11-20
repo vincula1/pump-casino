@@ -39,11 +39,20 @@ const GameIcon: React.FC<{ type: string }> = ({ type }) => {
       );
     case GameType.SLOTS:
       return (
-        <div className="w-24 h-24 bg-gradient-to-b from-gold-600 to-yellow-800 rounded-lg border-4 border-yellow-900 flex items-center justify-center shadow-2xl p-2">
-           <div className="w-full h-full bg-white rounded flex items-center justify-around overflow-hidden border border-slate-300 bg-gradient-to-b from-white to-slate-200">
-              <span className="text-xl animate-bounce">7</span>
-              <span className="text-xl animate-bounce delay-75">7</span>
-              <span className="text-xl animate-bounce delay-150">7</span>
+        <div className="relative w-24 h-24">
+           <div className="absolute inset-0 bg-gradient-to-b from-purple-900 to-slate-900 rounded-xl border-2 border-gold-500 shadow-xl overflow-hidden">
+               <div className="flex h-full justify-around items-center px-1 bg-black/20">
+                  <div className="w-6 h-16 bg-gradient-to-b from-slate-100 to-slate-300 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden">
+                      <span className="text-red-600 font-bold text-lg animate-bounce">7</span>
+                  </div>
+                  <div className="w-6 h-16 bg-gradient-to-b from-slate-100 to-slate-300 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden">
+                      <span className="text-purple-600 font-bold text-lg animate-bounce delay-75">🍇</span>
+                  </div>
+                  <div className="w-6 h-16 bg-gradient-to-b from-slate-100 to-slate-300 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden">
+                      <span className="text-gold-600 font-bold text-lg animate-bounce delay-150">🔔</span>
+                  </div>
+               </div>
+               <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
            </div>
         </div>
       );
