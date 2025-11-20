@@ -15,7 +15,6 @@ const getAvatar = (username: string) => {
 
 const INITIAL_GLOBAL_MESSAGES: ChatMessage[] = [
   { id: '1', username: 'System', message: 'Welcome to the Global Lounge.', isBot: true, avatar: getAvatar('System') },
-  { id: '2', username: 'HighRoller', message: 'Good luck everyone.', isBot: false, avatar: getAvatar('HighRoller') },
 ];
 
 const INITIAL_AI_MESSAGES: ChatMessage[] = [
@@ -49,6 +48,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar }) => {
       });
     } catch (e) {
       console.error("Failed to init AI chat", e);
+      // Don't break the UI, just leave session null
     }
   };
 
@@ -66,25 +66,30 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar }) => {
     }
   }, [globalMessages, aiMessages, activeTab, isTyping]);
 
-  // Simulate random live activity in Global Chat
+  // Simulate random live activity in Global Chat (Real Hype only)
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (Math.random() > 0.85) {
-        const randomEvents = ['Huge Jackpot', 'New High Score', 'Streak broken', 'Big Win Table 4'];
+      if (Math.random() > 0.9) { // Less frequent
+        const randomEvents = ['High Roller joined', 'Big Win Table 4', 'Jackpot increasing'];
         const event = randomEvents[Math.floor(Math.random() * randomEvents.length)];
-        // We can still use the service for quick one-off hype in global chat
-        const hype = await generateHypeMessage(event);
         
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          username: 'System',
-          message: hype,
-          isBot: true,
-          avatar: getAvatar('System')
-        };
-        setGlobalMessages(prev => [...prev.slice(-50), newMessage]);
+        try {
+            const hype = await generateHypeMessage(event);
+            if (hype) {
+                const newMessage: ChatMessage = {
+                id: Date.now().toString(),
+                username: 'System',
+                message: hype,
+                isBot: true,
+                avatar: getAvatar('System')
+                };
+                setGlobalMessages(prev => [...prev.slice(-50), newMessage]);
+            }
+        } catch (e) {
+            // Silent fail for background tasks
+        }
       }
-    }, 15000);
+    }, 20000);
 
     return () => clearInterval(interval);
   }, []);
@@ -120,7 +125,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar }) => {
       setInput(''); // Clear input immediately
       setIsTyping(true);
 
-      // Ensure session exists
+      // Ensure session exists or try to recreate
       if (!chatSession.current) {
         initChatSession();
       }
@@ -138,35 +143,30 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar }) => {
           setAiMessages(prev => [...prev, aiMsg]);
         } catch (error) {
            console.error("Chat Error", error);
-           // Try to reconnect and retry once
+           
+           const errorMsg: ChatMessage = {
+            id: Date.now().toString() + '_err',
+            username: 'Casino Host',
+            message: "Connection to AI mainframe interrupted. Please try again.",
+            isBot: true,
+            avatar: getAvatar('Casino Host')
+           };
+           setAiMessages(prev => [...prev, errorMsg]);
+           
+           // Attempt re-init for next time
            initChatSession();
-           try {
-              if (chatSession.current) {
-                  const retryResponse = await chatSession.current.sendMessage({ message: prompt });
-                  const aiMsg: ChatMessage = {
-                    id: Date.now().toString() + '_ai_retry',
-                    username: 'Casino Host',
-                    message: retryResponse.text || "Let's try that again.",
-                    isBot: true,
-                    avatar: getAvatar('Casino Host')
-                  };
-                  setAiMessages(prev => [...prev, aiMsg]);
-              }
-           } catch (retryError) {
-              const errorMsg: ChatMessage = {
-                id: Date.now().toString() + '_err',
-                username: 'Casino Host',
-                message: "I seem to be having trouble connecting to the mainframe. Try again in a moment.",
-                isBot: true,
-                avatar: getAvatar('Casino Host')
-              };
-              setAiMessages(prev => [...prev, errorMsg]);
-           }
         } finally {
           setIsTyping(false);
         }
       } else {
         setIsTyping(false);
+        setAiMessages(prev => [...prev, {
+            id: Date.now().toString() + '_fail',
+            username: 'System',
+            message: "AI Host unavailable. Please check your connection.",
+            isBot: true,
+            avatar: getAvatar('System')
+        }]);
       }
     }
   };

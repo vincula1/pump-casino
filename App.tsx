@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { GameCard } from './components/ui/Card';
 import { Leaderboard } from './components/Leaderboard';
@@ -11,7 +11,7 @@ import { Crash } from './games/Crash';
 import { Mines } from './games/Mines';
 import { User, GameType } from './types';
 import { GAME_CONFIGS } from './constants';
-import { db, isLive } from './services/database'; 
+import { db, isLive, supabase } from './services/database'; 
 import { Logo } from './components/ui/Logo';
 
 const PhantomIcon = () => (
@@ -25,50 +25,59 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentGame, setCurrentGame] = useState<GameType | null>(null);
   const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
-  const [totalOnline, setTotalOnline] = useState<number>(0);
+  const [totalOnline, setTotalOnline] = useState<number>(1); // Start with 1 (yourself)
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // Initialize Member Counts (Deterministic Simulation)
+  // Realtime Presence Logic
   useEffect(() => {
-    const updateCounts = () => {
-        const now = Date.now();
-        const hour = new Date().getUTCHours();
-        const timeFactor = Math.sin((hour - 8) / 24 * 2 * Math.PI); 
-        const baseUsers = 2500 + (1500 * timeFactor); 
-        const timeBlock = Math.floor(now / 10000);
-        const fluctuation = (timeBlock * 9301 + 49297) % 200 - 100;
-        
-        const currentTotal = Math.floor(baseUsers + fluctuation);
-        setTotalOnline(currentTotal);
+    if (!supabase || !isLive) {
+      // If offline, we only know about ourselves
+      setTotalOnline(1);
+      setPlayerCounts(currentGame ? { [currentGame]: 1 } : {});
+      return;
+    }
 
-        const seed = timeBlock;
-        const random = (offset: number) => {
-             const x = Math.sin(seed + offset) * 10000;
-             return x - Math.floor(x);
-        };
+    const channel = supabase.channel('pump_casino_presence', {
+      config: {
+        presence: {
+          key: user ? user.username : `guest-${Math.random().toString(36).substring(7)}`,
+        },
+      },
+    });
 
-        const distribution = {
-            [GameType.BLACKJACK]: 0.25 + (random(1) * 0.05),
-            [GameType.SLOTS]: 0.20 + (random(2) * 0.05),
-            [GameType.CRASH]: 0.15 + (random(3) * 0.05),
-            [GameType.ROULETTE]: 0.15 + (random(4) * 0.05),
-            [GameType.MINES]: 0.15 + (random(5) * 0.05),
-            [GameType.DICE]: 0.10 + (random(6) * 0.05)
-        };
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      
+      let total = 0;
+      const counts: Record<string, number> = {};
 
-        const totalDist = Object.values(distribution).reduce((a, b) => a + b, 0);
-        const newCounts: Record<string, number> = {};
-        Object.keys(GAME_CONFIGS).forEach(key => {
-            const percent = distribution[key as GameType] / totalDist;
-            newCounts[key] = Math.floor(currentTotal * percent);
+      Object.values(state).forEach((presences: any) => {
+        presences.forEach((p: any) => {
+          total++;
+          if (p.game) {
+            counts[p.game] = (counts[p.game] || 0) + 1;
+          }
         });
-        setPlayerCounts(newCounts);
-    };
+      });
 
-    updateCounts();
-    const interval = setInterval(updateCounts, 5000); 
-    return () => clearInterval(interval);
-  }, []);
+      setTotalOnline(total);
+      setPlayerCounts(counts);
+    });
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({
+          online_at: new Date().toISOString(),
+          game: currentGame,
+          status: 'online'
+        });
+      }
+    });
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  }, [user, currentGame]);
 
   const getPhantomProvider = () => {
     if ('phantom' in window) {
@@ -84,63 +93,61 @@ const App: React.FC = () => {
     return null;
   };
 
-  // CHECKER: Only auto-connect if user didn't explicitly disconnect
+  // Auto-connect logic
   useEffect(() => {
     const wasDisconnected = localStorage.getItem('explicitDisconnect') === 'true';
     if (wasDisconnected) return;
 
-    let attempts = 0;
     const checkProvider = setInterval(() => {
-        attempts++;
         const provider = getPhantomProvider();
         if (provider) {
-            initWallet(provider);
+            // Silent connect only if trusted
+            provider.connect({ onlyIfTrusted: true })
+                .then(async (response: any) => {
+                    if (response.publicKey) {
+                        const walletAddr = response.publicKey.toString();
+                        const userAccount = await db.getUser(walletAddr);
+                        setUser(userAccount);
+                    }
+                })
+                .catch(() => {}); // Silent fail
             clearInterval(checkProvider);
         }
-        if (attempts > 10) clearInterval(checkProvider); 
-    }, 500);
+    }, 1000);
+    
+    // Clean up loop after 5s
+    setTimeout(() => clearInterval(checkProvider), 5000);
+
     return () => clearInterval(checkProvider);
   }, []);
 
-  const initWallet = async (provider: any) => {
-    try {
-        // Silent connect attempt
-        const response = await provider.connect({ onlyIfTrusted: true });
-        if (response.publicKey) {
-            const walletAddr = response.publicKey.toString();
-            const userAccount = await db.getUser(walletAddr);
-            setUser(userAccount);
-        }
-    } catch (err) {
-        // Not trusted or not connected, do nothing
-    }
-    
-    // Listen for account changes
-    provider.removeAllListeners('accountChanged');
-    provider.on('accountChanged', async (publicKey: any) => {
+  // Init wallet listeners
+  useEffect(() => {
+    const provider = getPhantomProvider();
+    if (provider) {
+        provider.removeAllListeners('accountChanged');
+        provider.on('accountChanged', async (publicKey: any) => {
             if (publicKey) {
                 localStorage.removeItem('explicitDisconnect'); 
                 const userAccount = await db.getUser(publicKey.toString());
                 setUser(userAccount);
             } else {
+                // Wallet locked or switched
                 setUser(null);
             }
-    });
-  };
+        });
+    }
+  }, []);
 
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
       const provider = getPhantomProvider();
-
       if (provider) {
         try {
-          // Explicit connect call
           const response = await provider.connect();
           const publicKey = response.publicKey.toString();
-          
           localStorage.removeItem('explicitDisconnect');
-          
           const userAccount = await db.getUser(publicKey);
           setUser(userAccount);
         } catch (connErr) {
@@ -157,14 +164,14 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    // 1. Flag disconnection
+    // 1. Flag disconnection to prevent auto-reconnect loop
     localStorage.setItem('explicitDisconnect', 'true');
     
-    // 2. Clear State
+    // 2. Clear local state
     setUser(null);
     setCurrentGame(null);
 
-    // 3. Force disconnect from provider
+    // 3. Force deep disconnect from provider
     try {
         const provider = getPhantomProvider();
         if (provider) {
@@ -174,7 +181,7 @@ const App: React.FC = () => {
         console.warn("Provider disconnect error", e);
     }
 
-    // 4. Force reload to ensure next connect is fresh and prompts user
+    // 4. Reload page to ensure clean state for next login
     window.location.reload();
   };
 
@@ -186,7 +193,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Render Current Game
   const renderGame = () => {
     switch (currentGame) {
       case GameType.BLACKJACK: return <Blackjack onEndGame={updateBalance} balance={user!.balance} />;
@@ -237,8 +243,8 @@ const App: React.FC = () => {
 
              {/* Footer info */}
              <div className="mt-8 flex items-center gap-2 text-slate-500 text-xs font-medium">
-                <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`}></span>
-                {isLive ? 'System Online' : 'Offline Mode'}
+                <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-slate-600'} animate-pulse`}></span>
+                {isLive ? 'System Online' : 'Local Mode'}
              </div>
          </div>
       </div>

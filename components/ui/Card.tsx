@@ -107,14 +107,16 @@ export const GameCard: React.FC<CardProps> = ({ title, description, color, onCli
         </div>
       </div>
 
-      {/* Player Count Badge */}
-      <div className="absolute top-4 right-4 z-20 bg-slate-950/60 backdrop-blur px-3 py-1.5 rounded-full border border-slate-700/50 flex items-center gap-2 shadow-lg">
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        </span>
-        <span className="text-xs font-mono text-slate-300 font-semibold">{players}</span>
-      </div>
+      {/* Player Count Badge - ONLY SHOW IF PLAYERS > 0 */}
+      {players > 0 && (
+        <div className="absolute top-4 right-4 z-20 bg-slate-950/60 backdrop-blur px-3 py-1.5 rounded-full border border-slate-700/50 flex items-center gap-2 shadow-lg">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span className="text-xs font-mono text-slate-300 font-semibold">{players}</span>
+        </div>
+      )}
       
       {/* Shine Effect */}
       <div className="absolute -top-full -left-full w-full h-full bg-gradient-to-br from-transparent via-white/5 to-transparent transform group-hover:translate-x-[200%] group-hover:translate-y-[200%] transition-transform duration-1000 pointer-events-none"></div>
