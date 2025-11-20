@@ -49,16 +49,16 @@ interface ChatProps {
 
 // Fallback responses if AI is offline (Ace Persona)
 const OFFLINE_RESPONSES = [
-    "House edge is real, fam. Quit while you're ahead.",
-    "Always split Aces and Eights. Basic math.",
-    "Martingale is a trap unless you have infinite bankroll.",
-    "Roulette? It's all random. Green zero is the dream killer.",
-    "I'm analyzing the chain... gimme a sec. Just play smart.",
-    "50/50 shots are the best you'll get here. Good luck.",
-    "Never chase losses. That's how you get rekt.",
-    "Pattern recognition in random numbers? That's a myth, bro.",
-    "Market's choppy. Bet small, win big.",
-    "WAGMI if you play your cards right."
+    "House edge is real, bro. Watch your sizing.",
+    "Never split 10s. That's rookie behavior.",
+    "Martingale works until it doesn't, then you're rekt.",
+    "Roulette wheel has no memory. Don't chase the pattern.",
+    "Let me check the stats... nah, looks like noise. Just play smart.",
+    "50/50 is the best you get. Coin flip life.",
+    "Don't tilt. That's how the house wins.",
+    "Patterns are a myth in crypto and casinos, fam.",
+    "Market is volatile, same as this table.",
+    "WAGMI if you have discipline."
 ];
 
 export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
@@ -133,7 +133,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
       chatSession.current = ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
-          systemInstruction: "You are 'Ace', a crypto casino gambler bro. You are tough, use slang like 'rekt', 'moon', 'wagmi'. Never use pet names like 'darling' or 'honey'. Keep it brief and cool.",
+          systemInstruction: "You are 'Ace', a crypto casino gambler bro. You are tough, use slang like 'rekt', 'moon', 'wagmi', 'alpha'. NEVER use pet names like 'darling', 'honey', 'sweety'. Be concise, slightly cocky but helpful. You analyze gambling strategies seriously.",
         },
       });
     } catch (e) {
