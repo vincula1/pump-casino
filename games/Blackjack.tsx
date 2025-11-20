@@ -19,8 +19,10 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
   const [resultMessage, setResultMessage] = useState('');
+  const [winAmount, setWinAmount] = useState(0);
   const [aiCommentary, setAiCommentary] = useState('');
   const [deck, setDeck] = useState<Card[]>([]);
+  const [streak, setStreak] = useState(0);
 
   const createDeck = () => {
     const deck: Card[] = [];
@@ -62,15 +64,13 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     setDealerHand(dHand);
     setGameState('playing');
     setResultMessage('');
+    setWinAmount(0);
     setAiCommentary('');
     
     playSound('cardFlip');
     setTimeout(() => playSound('cardFlip'), 200);
 
     if (calculateScore(pHand) === 21) {
-        // Instant win handled in next effect or check
-        // But usually player waits for dealer peek. 
-        // For simplicity, let player stand/play.
         triggerAI("Blackjack dealt!");
     }
   };
@@ -86,6 +86,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     if (calculateScore(newHand) > 21) {
       setGameState('finished');
       setResultMessage('BUST');
+      setStreak(0);
       playSound('lose');
       triggerAI("Busted.");
     }
@@ -102,7 +103,6 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         let currentDealerHand = [...dealerHand];
         let currentDeck = [...deck];
         
-        // Dealer hits on soft 17 logic omitted for simplicity, hits until >= 17
         while (calculateScore(currentDealerHand) < 17) {
           await new Promise(r => setTimeout(r, 800));
           playSound('cardFlip');
@@ -116,18 +116,27 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         const dScore = calculateScore(currentDealerHand);
         
         setGameState('finished');
+        
         if (dScore > 21 || pScore > dScore) {
+          const win = bet * 2;
           setResultMessage('WIN');
-          onEndGame(bet * 2);
+          setWinAmount(win);
+          setStreak(s => s + 1);
+          onEndGame(win);
           playSound('win');
           triggerAI("Player wins hand.");
         } else if (pScore === dScore) {
           setResultMessage('PUSH');
+          setWinAmount(bet); // Return bet
+          // Streak typically resets or stays same on push? Let's reset to be strict or keep same. 
+          // User asked: "reset on losses or pushes".
+          setStreak(0);
           onEndGame(bet);
           playSound('click');
           triggerAI("Push. Money back.");
         } else {
           setResultMessage('LOSE');
+          setStreak(0);
           playSound('lose');
           triggerAI("House wins.");
         }
@@ -179,22 +188,22 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     <div className="flex flex-col items-center w-full max-w-5xl mx-auto p-4">
       
       {/* CLEAN TABLE SURFACE */}
-      <div className="w-full bg-emerald-900 rounded-[3rem] p-8 md:p-12 border-[1px] border-emerald-800 shadow-2xl relative min-h-[600px] flex flex-col justify-between overflow-hidden">
+      <div className="w-full bg-emerald-900 rounded-[3rem] p-8 md:p-12 border-[1px] border-emerald-800 shadow-2xl relative min-h-[550px] flex flex-col justify-between overflow-hidden">
           
           {/* TOP STATUS BAR */}
           <div className="absolute top-0 left-0 right-0 h-16 bg-black/20 backdrop-blur flex items-center justify-between px-8 border-b border-emerald-800/30">
-               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Blackjack Pays 3:2</div>
+               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest hidden md:block">Blackjack Pays 3:2</div>
                
-               {gameState !== 'betting' && (
-                   <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-wider animate-fade-in ${
-                       gameState === 'finished' ? (resultMessage === 'WIN' ? 'bg-emerald-500 text-emerald-950' : resultMessage === 'LOSE' ? 'bg-red-500 text-white' : 'bg-slate-500 text-white')
-                       : 'bg-black/40 text-white'
-                   }`}>
-                       {gameState === 'finished' ? resultMessage : gameState === 'dealerTurn' ? "DEALER'S TURN" : "YOUR TURN"}
-                   </div>
-               )}
+               {/* STREAK COUNTER */}
+               <div className="flex items-center gap-2 bg-black/30 px-4 py-1.5 rounded-full border border-white/10">
+                  <span className="text-lg">🔥</span>
+                  <div className="flex flex-col leading-none">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Streak</span>
+                      <span className={`font-mono font-bold ${streak > 0 ? 'text-orange-400' : 'text-slate-500'}`}>{streak}</span>
+                  </div>
+               </div>
 
-               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Dealer stands on 17</div>
+               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest hidden md:block">Dealer stands on 17</div>
           </div>
 
           {/* Dealer Area */}
@@ -230,8 +239,26 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
           </div>
       </div>
 
+      {/* INTEGRATED INFO / WIN DISPLAY */}
+      <div className="mt-6 mb-6 h-16 w-full max-w-xl bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center shadow-inner">
+          {resultMessage && gameState === 'finished' ? (
+               <div className={`text-4xl font-black animate-bounce drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] ${
+                   resultMessage === 'WIN' ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]' :
+                   resultMessage === 'LOSE' || resultMessage === 'BUST' ? 'text-red-500' : 'text-slate-200'
+               }`}>
+                   {resultMessage === 'WIN' ? `WIN $${winAmount}` : resultMessage}
+               </div>
+          ) : (
+              <div className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+                  {gameState === 'betting' ? 'PLACE YOUR BET' : 
+                   gameState === 'playing' ? 'YOUR TURN' : 
+                   gameState === 'dealerTurn' ? 'DEALER TURN' : 'GOOD LUCK'}
+              </div>
+          )}
+      </div>
+
       {/* CONTROLS */}
-      <div className="mt-8 w-full max-w-xl">
+      <div className="w-full max-w-xl">
         {gameState === 'betting' ? (
           <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex gap-4 items-center">
              <div className="flex-1">

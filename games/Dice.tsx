@@ -14,6 +14,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
   const [prediction, setPrediction] = useState(50);
   const [roll, setRoll] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
+  const [winAmount, setWinAmount] = useState(0);
   const [aiCommentary, setAiCommentary] = useState('');
 
   const multiplier = parseFloat((98 / (100 - prediction)).toFixed(2));
@@ -29,6 +30,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
     onEndGame(-bet);
     setRolling(true);
     setRoll(null);
+    setWinAmount(0);
     setAiCommentary('');
     playSound('click');
 
@@ -48,6 +50,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
 
       if (finalDisplay > prediction) {
         const win = bet * multiplier;
+        setWinAmount(win);
         onEndGame(win);
         playSound('win');
         triggerAI(`Player won ${win.toFixed(0)} dollars on dice roll`);
@@ -66,7 +69,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
       </div>
       
       {/* Visualizer */}
-      <div className="w-full bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 md:p-12 border border-slate-700 shadow-[0_0_40px_rgba(0,0,0,0.3)] mb-8 relative overflow-hidden">
+      <div className="w-full bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 md:p-12 border border-slate-700 shadow-[0_0_40px_rgba(0,0,0,0.3)] mb-6 relative overflow-hidden">
         <div className="flex justify-between text-slate-500 text-xs font-bold mb-4 uppercase tracking-widest">
              <span>0</span>
              <span>25</span>
@@ -127,6 +130,23 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
                 Drag slider to adjust Win Chance
             </div>
         </div>
+      </div>
+
+      {/* INTEGRATED INFO / WIN DISPLAY */}
+      <div className="mb-8 h-16 w-full bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center shadow-inner">
+          {winAmount > 0 ? (
+               <div className="text-4xl font-black text-emerald-400 animate-bounce drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]">
+                   WIN ${winAmount.toFixed(2)}
+               </div>
+          ) : roll !== null && !rolling ? (
+              <div className="text-xl font-bold text-red-500 uppercase tracking-widest">
+                  ROLLED {roll}
+              </div>
+          ) : (
+              <div className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+                  {rolling ? 'ROLLING...' : 'ROLL TO WIN'}
+              </div>
+          )}
       </div>
 
       {/* Stats & Controls */}

@@ -43,6 +43,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<{ number: number; color: string } | null>(null);
+  const [winAmount, setWinAmount] = useState(0);
   const [aiCommentary, setAiCommentary] = useState('');
 
   // Initialize with random rotation
@@ -62,6 +63,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
     onEndGame(-betAmount);
     setSpinning(true);
     setResult(null);
+    setWinAmount(0);
     setAiCommentary('');
 
     // 1. Determine result
@@ -71,27 +73,12 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
     // 2. Calculate rotation
     const sliceAngle = 360 / 37;
-    // Target is to have the winning number at the TOP (0 degrees).
-    // The wheel renders starting from 0 at top going clockwise.
-    // If winning index is i, its center is at i * sliceAngle + half.
-    // To bring that to top, we rotate backwards by that amount.
-    // Or rotate forward by (360 - angle).
-    
-    const index = randomIndex; // Index in WHEEL_NUMBERS array
+    const index = randomIndex;
     const targetAngleOnWheel = index * sliceAngle + (sliceAngle / 2);
-    
-    // We need to add spins + correction
-    // Current rotation % 360
     const currentRot = rotation;
-    const spins = 5; // Number of full rotations
+    const spins = 5;
     const degreesPerSpin = 360;
-    
-    // We want final rotation to be: k * 360 + (360 - targetAngleOnWheel)
-    // But we must ensure we always add positive rotation to spin clockwise visually (CSS transform increases)
-    // Or if we want to spin clockwise, the wheel rotates right.
-    
     const targetRotation = (360 - targetAngleOnWheel); 
-    // Calculate minimal distance to reach this target mod 360 from current
     const currentMod = currentRot % 360;
     let dist = targetRotation - currentMod;
     if (dist < 0) dist += 360;
@@ -101,7 +88,6 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
     setRotation(finalRotation);
     
-    // Total duration 4s
     const duration = 4000;
 
     setTimeout(() => {
@@ -126,6 +112,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
       if (isWin) {
         winnings = betAmount * payoutMultiplier;
+        setWinAmount(winnings);
         onEndGame(winnings); 
         playSound('win');
         triggerAI(`Roulette Hit! ${winningNumber} (${winningColor})`);
@@ -156,7 +143,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
       </div>
 
       {/* Realistic SVG Wheel */}
-      <div className="relative w-[320px] h-[320px] md:w-[450px] md:h-[450px] mb-12 drop-shadow-2xl">
+      <div className="relative w-[320px] h-[320px] md:w-[450px] md:h-[450px] mb-8 drop-shadow-2xl">
          {/* Pointer */}
          <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[20px] border-t-gold-500 drop-shadow-lg filter drop-shadow-md"></div>
 
@@ -206,19 +193,23 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
          </div>
       </div>
       
-      {/* Result Display */}
-      <div className="h-16 mb-8 flex items-center justify-center">
-         {result && (
-             <div className="flex flex-col items-center animate-slide-up">
-                 <span className="text-slate-400 text-xs uppercase tracking-widest mb-1">Result</span>
-                 <div className={`text-4xl font-black flex items-center gap-3 px-8 py-2 rounded-xl border-2 shadow-xl ${
-                     result.color === 'red' ? 'bg-red-900/50 border-red-500 text-red-400' :
-                     result.color === 'green' ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' :
-                     'bg-slate-800 border-slate-500 text-white'
-                 }`}>
-                    <span>{result.number}</span>
-                    <span className="text-lg opacity-80 uppercase">{result.color}</span>
-                 </div>
+      {/* INTEGRATED INFO / WIN DISPLAY */}
+      <div className="mt-4 mb-8 h-16 w-full max-w-2xl bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center shadow-inner">
+         {winAmount > 0 ? (
+             <div className="text-4xl font-black text-emerald-400 animate-bounce drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]">
+                 WIN ${winAmount}
+             </div>
+         ) : result ? (
+             <div className={`text-2xl font-bold uppercase tracking-widest flex items-center gap-2 ${
+                 result.color === 'red' ? 'text-red-500' : result.color === 'green' ? 'text-emerald-500' : 'text-slate-400'
+             }`}>
+                 <span>RESULT:</span>
+                 <span className="text-3xl">{result.number}</span>
+                 <span className="text-sm opacity-75">{result.color}</span>
+             </div>
+         ) : (
+             <div className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+                 {spinning ? 'GOOD LUCK...' : 'PLACE YOUR BETS'}
              </div>
          )}
       </div>

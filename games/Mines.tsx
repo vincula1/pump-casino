@@ -19,6 +19,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
   const [revealed, setRevealed] = useState<boolean[]>(Array(GRID_SIZE).fill(false));
   const [aiCommentary, setAiCommentary] = useState('');
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
+  const [winAmount, setWinAmount] = useState(0);
   
   const [lastClicked, setLastClicked] = useState<number | null>(null);
 
@@ -43,6 +44,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
     setGameState('playing');
     setAiCommentary('');
     setCurrentMultiplier(1.0);
+    setWinAmount(0);
     setLastClicked(null);
   };
 
@@ -70,8 +72,9 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
   const cashOut = () => {
     if (gameState !== 'playing') return;
     playSound('win');
-    const winAmount = bet * currentMultiplier;
-    onEndGame(winAmount);
+    const win = bet * currentMultiplier;
+    setWinAmount(win);
+    onEndGame(win);
     setGameState('cashed');
     triggerAI(`Secured the bag. ${currentMultiplier.toFixed(2)}x win.`);
     setRevealed(Array(GRID_SIZE).fill(true)); 
@@ -115,12 +118,30 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
                 </div>
             </div>
             
+            {/* INTEGRATED INFO / WIN DISPLAY */}
+            <div className="mt-4 mb-2 h-16 w-full bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center shadow-inner">
+                {gameState === 'cashed' ? (
+                    <div className="text-2xl font-black text-emerald-400 animate-bounce text-center">
+                        WIN ${winAmount.toFixed(0)}
+                    </div>
+                ) : gameState === 'lost' ? (
+                    <div className="text-xl font-bold text-rose-500 uppercase tracking-widest">
+                        GAME OVER
+                    </div>
+                ) : gameState === 'playing' ? (
+                    <div className="text-center">
+                        <div className="text-xs text-slate-400 uppercase">Current</div>
+                        <div className="text-2xl font-mono font-bold text-white">${(bet * currentMultiplier).toFixed(2)}</div>
+                    </div>
+                ) : (
+                    <div className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+                        PRESS START
+                    </div>
+                )}
+            </div>
+
             {gameState === 'playing' ? (
                 <div className="mt-auto">
-                    <div className="text-center mb-4">
-                        <div className="text-slate-400 text-xs uppercase">Current Payout</div>
-                        <div className="text-2xl font-mono font-black text-emerald-400">${(bet * currentMultiplier).toFixed(2)}</div>
-                    </div>
                     <Button variant="success" fullWidth onClick={cashOut} className="h-14 text-lg font-black shadow-[0_0_20px_#10b981]">CASH OUT</Button>
                 </div>
             ) : (
