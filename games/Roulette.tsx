@@ -4,7 +4,6 @@ import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
 import { GameEvent, GameType } from '../types';
-import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface RouletteProps {
   onEndGame: (winnings: number) => void;
@@ -23,6 +22,7 @@ const getNumberColor = (num: number) => {
   return 'black';
 };
 
+// Helper to generate SVG path for a slice
 const getSlicePath = (index: number, total: number, radius: number) => {
   const startAngle = (index * 360) / total;
   const endAngle = ((index + 1) * 360) / total;
@@ -44,8 +44,8 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<{ number: number; color: string } | null>(null);
   const [aiCommentary, setAiCommentary] = useState('');
-  const [resultOverlay, setResultOverlay] = useState<{show: boolean, type: 'win'|'lose'|'neutral', msg: string, amount?: number}>({ show: false, type: 'neutral', msg: '' });
 
+  // Initialize with random rotation
   useEffect(() => {
       setRotation(Math.floor(Math.random() * 360));
   }, []);
@@ -62,22 +62,36 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
     onEndGame(-betAmount);
     setSpinning(true);
     setResult(null);
-    setResultOverlay({ show: false, type: 'neutral', msg: '' });
     setAiCommentary('');
 
+    // 1. Determine result
     const randomIndex = Math.floor(Math.random() * WHEEL_NUMBERS.length);
     const winningNumber = WHEEL_NUMBERS[randomIndex];
     const winningColor = getNumberColor(winningNumber);
 
+    // 2. Calculate rotation
     const sliceAngle = 360 / 37;
-    const index = randomIndex;
+    // Target is to have the winning number at the TOP (0 degrees).
+    // The wheel renders starting from 0 at top going clockwise.
+    // If winning index is i, its center is at i * sliceAngle + half.
+    // To bring that to top, we rotate backwards by that amount.
+    // Or rotate forward by (360 - angle).
+    
+    const index = randomIndex; // Index in WHEEL_NUMBERS array
     const targetAngleOnWheel = index * sliceAngle + (sliceAngle / 2);
     
+    // We need to add spins + correction
+    // Current rotation % 360
     const currentRot = rotation;
-    const spins = 5; 
+    const spins = 5; // Number of full rotations
     const degreesPerSpin = 360;
     
+    // We want final rotation to be: k * 360 + (360 - targetAngleOnWheel)
+    // But we must ensure we always add positive rotation to spin clockwise visually (CSS transform increases)
+    // Or if we want to spin clockwise, the wheel rotates right.
+    
     const targetRotation = (360 - targetAngleOnWheel); 
+    // Calculate minimal distance to reach this target mod 360 from current
     const currentMod = currentRot % 360;
     let dist = targetRotation - currentMod;
     if (dist < 0) dist += 360;
@@ -87,12 +101,14 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
     setRotation(finalRotation);
     
+    // Total duration 4s
     const duration = 4000;
 
     setTimeout(() => {
       setSpinning(false);
       setResult({ number: winningNumber, color: winningColor });
       
+      // Determine Win
       let isWin = false;
       let payoutMultiplier = 0;
       let winnings = 0;
@@ -113,7 +129,6 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
         onEndGame(winnings); 
         playSound('win');
         triggerAI(`Roulette Hit! ${winningNumber} (${winningColor})`);
-        setResultOverlay({ show: true, type: 'win', msg: 'WIN', amount: winnings });
       } else {
         playSound('lose');
         triggerAI(`Missed. Result: ${winningNumber}`);
@@ -140,11 +155,8 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
           {aiCommentary && <span className="animate-fade-in bg-slate-800/80 px-4 py-1 rounded-full border border-slate-700 shadow-lg">{aiCommentary}</span>}
       </div>
 
-      {/* Wheel Container with Overlay */}
+      {/* Realistic SVG Wheel */}
       <div className="relative w-[320px] h-[320px] md:w-[450px] md:h-[450px] mb-12 drop-shadow-2xl">
-         
-         <ResultOverlay isOpen={resultOverlay.show} message={resultOverlay.msg} amount={resultOverlay.amount} type={resultOverlay.type} />
-
          {/* Pointer */}
          <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[20px] border-t-gold-500 drop-shadow-lg filter drop-shadow-md"></div>
 
@@ -188,11 +200,30 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
                         </g>
                     );
                 })}
+                {/* Inner Hub */}
                 <circle cx="50" cy="50" r="15" fill="#0f172a" stroke="#fbbf24" strokeWidth="1" />
             </svg>
          </div>
       </div>
       
+      {/* Result Display */}
+      <div className="h-16 mb-8 flex items-center justify-center">
+         {result && (
+             <div className="flex flex-col items-center animate-slide-up">
+                 <span className="text-slate-400 text-xs uppercase tracking-widest mb-1">Result</span>
+                 <div className={`text-4xl font-black flex items-center gap-3 px-8 py-2 rounded-xl border-2 shadow-xl ${
+                     result.color === 'red' ? 'bg-red-900/50 border-red-500 text-red-400' :
+                     result.color === 'green' ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' :
+                     'bg-slate-800 border-slate-500 text-white'
+                 }`}>
+                    <span>{result.number}</span>
+                    <span className="text-lg opacity-80 uppercase">{result.color}</span>
+                 </div>
+             </div>
+         )}
+      </div>
+
+      {/* Betting Board */}
       <div className="bg-slate-800/80 p-6 md:p-8 rounded-3xl border border-slate-700/50 w-full max-w-4xl shadow-2xl backdrop-blur-sm">
         <div className="flex gap-4 mb-8 justify-center overflow-x-auto pb-2">
            <button 
