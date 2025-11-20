@@ -5,12 +5,13 @@ import { GoogleGenAI } from "@google/genai";
 const apiKey = process.env.API_KEY;
 
 export const isGeminiConfigured = () => {
-    return !!apiKey && apiKey !== 'undefined' && apiKey !== '';
+    // Basic validation: Must exist, not be "undefined" string, and look like a Google Key (starts with AIza)
+    // This prevents sending requests with garbage keys which results in 403 errors.
+    return !!apiKey && apiKey !== 'undefined' && apiKey.trim() !== '' && apiKey.startsWith('AIza');
 };
 
-// We assume the key is valid. If it's not, the API calls will fail, 
-// and the UI components (Chat, Games) will catch the error and show fallback content.
-// This is better than blocking the app with a hard crash or dummy check.
+// We assume the key is valid if it passes isGeminiConfigured.
+// If not, we pass a dummy key to satisfy the constructor, but our logic prevents using it.
 export const ai = new GoogleGenAI({ apiKey: isGeminiConfigured() ? apiKey : "fallback_key_for_init_only" });
 
 export const generateHypeMessage = async (context: string): Promise<string> => {

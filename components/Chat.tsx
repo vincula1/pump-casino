@@ -67,6 +67,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>(INITIAL_AI_MESSAGES);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [aiError, setAiError] = useState(false);
   
   const globalEndRef = useRef<HTMLDivElement>(null);
   const aiEndRef = useRef<HTMLDivElement>(null);
@@ -125,8 +126,11 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
 
   // --- 2. AI Logic ---
   const initChatSession = () => {
+    if (aiError) return;
+    
     try {
       if (!isGeminiConfigured()) {
+          // Don't initialize if key is missing/bad, just use fallbacks
           return;
       }
       
@@ -137,7 +141,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
         },
       });
     } catch (e) {
-      // Silent error
+      console.error("AI Init Error:", e);
     }
   };
 
@@ -199,15 +203,15 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
       setInput('');
       setIsTyping(true);
 
-      // Try to re-init if null
-      if (!chatSession.current) {
+      // Try to re-init if null and no previous error
+      if (!chatSession.current && !aiError) {
         initChatSession();
       }
 
-      const delay = isGeminiConfigured() ? 0 : 1000 + Math.random() * 1000;
+      const delay = isGeminiConfigured() && !aiError ? 0 : 1000 + Math.random() * 1000;
 
       try {
-        if (chatSession.current && isGeminiConfigured()) {
+        if (chatSession.current && isGeminiConfigured() && !aiError) {
           const response = await chatSession.current.sendMessage({ message: prompt });
           const responseText = response.text;
 
@@ -226,8 +230,24 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
         } else {
             throw new Error("AI not configured");
         }
-      } catch (error) {
-           // Select relevant fallback based on keywords
+      } catch (error: any) {
+           console.warn("AI Error:", error);
+           
+           // Handle 403/API Keys Errors specifically
+           if (error.message?.includes('403') || error.status === 403) {
+               setAiError(true); // Stop trying to use AI
+               const systemMsg: ChatMessage = {
+                   id: Date.now().toString() + '_sys',
+                   username: 'System',
+                   message: "Ace is currently offline (API Key Invalid/Expired). Switching to basic responses.",
+                   isBot: true,
+                   isSystem: true
+               };
+               setAiMessages(prev => [...prev, systemMsg]);
+               return; // Don't show fallback immediately after system msg
+           }
+
+           // Standard Fallback
            let fallbackText = OFFLINE_RESPONSES[Math.floor(Math.random() * OFFLINE_RESPONSES.length)];
            const lowerPrompt = prompt.toLowerCase();
            if (lowerPrompt.includes('blackjack')) fallbackText = "Blackjack? Basic strategy says never take insurance. House edge is thin if you play perfect.";
@@ -247,11 +267,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
                setAiMessages(prev => [...prev, fallbackMsg]);
            }, delay);
       } finally {
-          if (isGeminiConfigured()) {
-            setIsTyping(false);
-          } else {
-            setTimeout(() => setIsTyping(false), delay);
-          }
+          setIsTyping(false);
       }
     }
   };
@@ -280,7 +296,13 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
            <>
              {globalMessages.map((msg) => (
               <div key={msg.id} className={`flex gap-3 ${msg.isBot ? 'opacity-90' : ''} animate-fade-in`}>
-                <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                {msg.avatar ? (
+                    <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                ) : (
+                    <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0 flex items-center justify-center text-xs font-bold text-slate-400">
+                        {msg.username.slice(0,1)}
+                    </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between mb-1">
                     <span className={`font-semibold text-xs uppercase truncate ${msg.isSystem ? 'text-gold-500 font-black tracking-wide' : msg.isBot ? 'text-emerald-400' : msg.username === 'You' || msg.username === username ? 'text-emerald-400' : 'text-slate-400'}`}>
@@ -297,13 +319,18 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
           <>
              {aiMessages.map((msg) => (
               <div key={msg.id} className={`flex gap-3 ${msg.username === 'You' ? 'flex-row-reverse' : ''} animate-fade-in`}>
-                 <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                 {msg.avatar ? (
+                    <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                 ) : (
+                     <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0"></div>
+                 )}
                  
                  <div className={`flex flex-col max-w-[80%] ${msg.username === 'You' ? 'items-end' : 'items-start'}`}>
-                    <span className={`font-semibold text-xs uppercase mb-1 ${msg.isBot ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    <span className={`font-semibold text-xs uppercase mb-1 ${msg.isBot ? 'text-emerald-400' : 'text-slate-400'} ${msg.isSystem ? 'text-gold-500' : ''}`}>
                         {msg.username}
                     </span>
                     <div className={`p-3 rounded-xl break-words text-sm text-left shadow-lg ${
+                        msg.isSystem ? 'bg-slate-900 border border-gold-500/50 text-gold-400' :
                         msg.username === 'You' 
                         ? 'bg-slate-600 text-white rounded-tr-none' 
                         : 'bg-slate-900/80 border border-slate-700 text-emerald-100 rounded-tl-none'
