@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { GameCard } from './components/ui/Card';
@@ -234,10 +233,12 @@ const App: React.FC = () => {
          <div className="absolute bottom-[-20%] right-[-20%] w-[70%] h-[70%] rounded-full bg-purple-500/10 blur-[120px] pointer-events-none"></div>
          
          <div className="relative z-10 w-full max-w-md bg-slate-900/80 backdrop-blur-2xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center">
-             <div className="mb-10 flex flex-col items-center gap-4">
-                 <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-                    <span className="text-5xl drop-shadow-md">🎰</span>
-                 </div>
+             <div className="mb-10 flex flex-col items-center gap-6">
+                 <img 
+                    src="https://i.imgur.com/3AdnfGw.png" 
+                    alt="Pump Casino Logo" 
+                    className="w-40 h-auto object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)] transform hover:scale-105 transition-transform duration-500"
+                 />
                  <div>
                     <h1 className="text-4xl font-black text-white tracking-tighter">PUMP<span className="text-emerald-400">.</span>CASINO</h1>
                     <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em] mt-2">Next Gen Crypto Gaming</p>
