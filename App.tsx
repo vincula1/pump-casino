@@ -9,7 +9,7 @@ import { Slots } from './games/Slots';
 import { Roulette } from './games/Roulette';
 import { Crash } from './games/Crash';
 import { Mines } from './games/Mines';
-import { User, GameType, GameEvent } from './types';
+import { User, GameType, GameEvent, ChatMessage } from './types';
 import { GAME_CONFIGS } from './constants';
 import { db, isLive, supabase } from './services/database'; 
 import { Logo } from './components/ui/Logo';
@@ -187,18 +187,23 @@ const App: React.FC = () => {
     setRecentEvents(prev => [...prev, event]);
 
     // If Big Win (Multiplier >= 10 or Win > $500), broadcast to global chat
-    // Lowered threshold from $1000 to $500 to increase feed activity
     if (event.isWin && (event.multiplier && event.multiplier >= 10 || event.payout >= 500)) {
         const formattedUser = event.username.length > 10 ? `${event.username.slice(0,4)}...${event.username.slice(-4)}` : event.username;
         
-        db.broadcastMessage({
+        const systemMsg: ChatMessage = {
             id: Date.now().toString(),
             username: 'System',
             message: `🚀 BIG WIN! ${formattedUser} just won $${event.payout.toLocaleString()} on ${event.game}!`,
             isBot: true,
             isSystem: true,
-            avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=System&backgroundColor=0f172a"
-        });
+            avatar: "System" // Handled by getAvatar in Chat component
+        };
+
+        // 1. Send to DB (for other players)
+        db.broadcastMessage(systemMsg);
+
+        // 2. Dispatch Local Event (So YOU see it immediately, even if DB is offline)
+        window.dispatchEvent(new CustomEvent('pump-casino-chat', { detail: systemMsg }));
     }
   };
 

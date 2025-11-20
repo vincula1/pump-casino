@@ -6,17 +6,36 @@ import { supabase } from '../services/database';
 import { RealtimeChannel } from '@supabase/supabase-js'; 
 import { Chat as GenAIChat } from "@google/genai";
 
-// Cyberpunk/Robot Avatar Style
-const AVATAR_BASE_URL = "https://api.dicebear.com/9.x/bottts-neutral/svg";
+// Custom SVG Avatars to ensure they always load
+const ACE_AVATAR_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="20" fill="#0f172a"/>
+  <circle cx="50" cy="50" r="35" stroke="#10b981" stroke-width="4" fill="#1e293b"/>
+  <rect x="30" y="42" width="12" height="8" rx="2" fill="#10b981">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  </rect>
+  <rect x="58" y="42" width="12" height="8" rx="2" fill="#10b981">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+  </rect>
+  <path d="M35 65 Q50 75 65 65" stroke="#10b981" stroke-width="4" stroke-linecap="round"/>
+  <path d="M20 25 L30 15 M80 25 L70 15" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+</svg>`)}`;
+
+const SYSTEM_AVATAR_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="20" fill="#0f172a"/>
+  <path d="M50 20 L80 35 V65 L50 80 L20 65 V35 Z" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+  <path d="M50 35 V65 M35 42 L65 58 M65 42 L35 58" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+</svg>`)}`;
 
 const getAvatar = (username: string) => {
-    if (username === 'Ace') return `${AVATAR_BASE_URL}?seed=Ace&backgroundColor=10b981&eyes=sensor&mouth=smile`;
-    if (username === 'System') return `${AVATAR_BASE_URL}?seed=System&backgroundColor=0f172a`;
-    return `${AVATAR_BASE_URL}?seed=${username}`;
+    if (username === 'Ace') return ACE_AVATAR_SVG;
+    if (username === 'System') return SYSTEM_AVATAR_SVG;
+    return `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${username}&backgroundColor=1e293b`;
 };
 
 const INITIAL_GLOBAL_MESSAGES: ChatMessage[] = [
-  { id: '1', username: 'System', message: 'Connected to Global Lounge (Live).', isBot: true, avatar: getAvatar('System') },
+  { id: '1', username: 'System', message: 'Connected to Global Lounge.', isBot: true, avatar: getAvatar('System') },
 ];
 
 const INITIAL_AI_MESSAGES: ChatMessage[] = [
@@ -60,6 +79,12 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
 
   // --- 1. Realtime Global Chat Logic ---
   useEffect(() => {
+    // LISTEN FOR LOCAL EVENTS (For Big Wins when Supabase might be offline/laggy)
+    const localHandler = (e: CustomEvent<ChatMessage>) => {
+        setGlobalMessages(prev => [...prev.slice(-50), e.detail]);
+    };
+    window.addEventListener('pump-casino-chat', localHandler as EventListener);
+
     if (!supabase) return;
 
     // Clean up previous channel if exists
@@ -91,6 +116,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
     channelRef.current = channel;
 
     return () => {
+        window.removeEventListener('pump-casino-chat', localHandler as EventListener);
         if (channelRef.current) {
             supabase?.removeChannel(channelRef.current);
         }
@@ -259,11 +285,11 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
                 <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between mb-1">
-                    <span className={`font-semibold text-xs uppercase truncate ${msg.isBot ? 'text-gold-500' : msg.username === 'You' || msg.username === username ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    <span className={`font-semibold text-xs uppercase truncate ${msg.isSystem ? 'text-gold-500 font-black tracking-wide' : msg.isBot ? 'text-emerald-400' : msg.username === 'You' || msg.username === username ? 'text-emerald-400' : 'text-slate-400'}`}>
                       {msg.username}
                     </span>
                   </div>
-                  <p className="text-slate-300 leading-relaxed break-words text-sm">{msg.message}</p>
+                  <p className={`leading-relaxed break-words text-sm ${msg.isSystem ? 'text-white font-bold' : 'text-slate-300'}`}>{msg.message}</p>
                 </div>
               </div>
             ))}
