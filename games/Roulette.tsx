@@ -45,7 +45,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
   const [result, setResult] = useState<{ number: number; color: string } | null>(null);
   const [aiCommentary, setAiCommentary] = useState('');
 
-  // Randomize initial position so it's not always 0 at start
+  // Initialize with random rotation
   useEffect(() => {
       setRotation(Math.floor(Math.random() * 360));
   }, []);
@@ -71,43 +71,38 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
     // 2. Calculate rotation
     const sliceAngle = 360 / 37;
-    // Target center of the slice
-    const targetAngle = randomIndex * sliceAngle + (sliceAngle / 2);
+    // Target is to have the winning number at the TOP (0 degrees).
+    // The wheel renders starting from 0 at top going clockwise.
+    // If winning index is i, its center is at i * sliceAngle + half.
+    // To bring that to top, we rotate backwards by that amount.
+    // Or rotate forward by (360 - angle).
     
-    // Calculate spins
-    const extraSpins = 5 + Math.floor(Math.random() * 3); 
+    const index = randomIndex; // Index in WHEEL_NUMBERS array
+    const targetAngleOnWheel = index * sliceAngle + (sliceAngle / 2);
     
-    // Current rotation might be huge, simplify it to mod 360 for calculation, but css needs additive
-    // Actually, just adding to current rotation ensures smooth transition
-    // We need the final rotation to be such that (finalRotation % 360) results in the correct alignment
-    // Alignment: To get `targetAngle` to Top (0deg), we need to rotate by `360 - targetAngle`.
+    // We need to add spins + correction
+    // Current rotation % 360
+    const currentRot = rotation;
+    const spins = 5; // Number of full rotations
+    const degreesPerSpin = 360;
     
-    const targetRotationNormalized = (360 - targetAngle);
+    // We want final rotation to be: k * 360 + (360 - targetAngleOnWheel)
+    // But we must ensure we always add positive rotation to spin clockwise visually (CSS transform increases)
+    // Or if we want to spin clockwise, the wheel rotates right.
     
-    // Calculate delta needed to reach next aligned position
-    const currentMod = rotation % 360;
-    let distance = targetRotationNormalized - currentMod;
-    if (distance < 0) distance += 360;
+    const targetRotation = (360 - targetAngleOnWheel); 
+    // Calculate minimal distance to reach this target mod 360 from current
+    const currentMod = currentRot % 360;
+    let dist = targetRotation - currentMod;
+    if (dist < 0) dist += 360;
     
-    // Add spins
-    const totalRotate = distance + (360 * extraSpins);
-    const finalRotation = rotation + totalRotate;
+    const totalRotationToAdd = (spins * degreesPerSpin) + dist;
+    const finalRotation = currentRot + totalRotationToAdd;
 
     setRotation(finalRotation);
     
-    // Sound effect loop
-    let spinTime = 0;
-    const totalDuration = 5000; // Increased duration for smoother slowdown
-    const soundInterval = setInterval(() => {
-        spinTime += 200;
-        if (spinTime < totalDuration - 500) { 
-            // Decrease frequency of clicks as time goes on manually? 
-            // Or just play tick. The constant tick is okay for MVP.
-             playSound('tick');
-        } else {
-            clearInterval(soundInterval);
-        }
-    }, 200);
+    // Total duration 4s
+    const duration = 4000;
 
     setTimeout(() => {
       setSpinning(false);
@@ -133,10 +128,10 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
         winnings = betAmount * payoutMultiplier;
         onEndGame(winnings); 
         playSound('win');
-        triggerAI(`Player hit ${winningNumber} (${winningColor}) on Roulette! Huge win.`);
+        triggerAI(`Roulette Hit! ${winningNumber} (${winningColor})`);
       } else {
         playSound('lose');
-        triggerAI(`Roulette result: ${winningNumber} (${winningColor}). House wins.`);
+        triggerAI(`Missed. Result: ${winningNumber}`);
       }
 
       if (onGameEvent) {
@@ -151,7 +146,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
         });
       }
 
-    }, totalDuration);
+    }, duration);
   };
 
   return (
@@ -162,24 +157,21 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
       {/* Realistic SVG Wheel */}
       <div className="relative w-[320px] h-[320px] md:w-[450px] md:h-[450px] mb-12 drop-shadow-2xl">
-         {/* Outer Rim */}
-         <div className="absolute inset-0 rounded-full border-[12px] border-slate-800 bg-slate-900 shadow-2xl"></div>
-         
          {/* Pointer */}
          <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[20px] border-t-gold-500 drop-shadow-lg filter drop-shadow-md"></div>
 
          {/* Rotating Part */}
          <div 
-            className="w-full h-full rounded-full"
+            className="w-full h-full rounded-full border-[12px] border-slate-800 bg-slate-900 shadow-2xl overflow-hidden"
             style={{ 
                 transform: `rotate(${rotation}deg)`,
-                transition: spinning ? 'transform 5s cubic-bezier(0.1, 0.05, 0.1, 1)' : 'none'
+                transition: spinning ? 'transform 4s cubic-bezier(0.15, 0, 0.15, 1)' : 'none'
             }}
          >
             <svg viewBox="0 0 100 100" className="w-full h-full">
                 {WHEEL_NUMBERS.map((num, i) => {
                     const color = getNumberColor(num);
-                    const fill = color === 'green' ? '#10b981' : color === 'red' ? '#ef4444' : '#1f2937';
+                    const fill = color === 'green' ? '#10b981' : color === 'red' ? '#dc2626' : '#1e293b';
                     const sliceAngle = 360 / 37;
                     const startAngle = i * sliceAngle;
                     const midAngle = startAngle + (sliceAngle / 2);
@@ -190,7 +182,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
                     return (
                         <g key={i}>
-                            <path d={getSlicePath(i, 37, 48)} fill={fill} stroke="#0f172a" strokeWidth="0.3" />
+                            <path d={getSlicePath(i, 37, 50)} fill={fill} stroke="#0f172a" strokeWidth="0.5" />
                             <text
                                 x={tx}
                                 y={ty}
@@ -208,9 +200,8 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
                         </g>
                     );
                 })}
-                <circle cx="50" cy="50" r="18" fill="#0f172a" stroke="#fbbf24" strokeWidth="1" />
-                <circle cx="50" cy="50" r="2" fill="#fbbf24" />
-                <circle cx="50" cy="50" r="10" fill="none" stroke="#334155" strokeWidth="0.5" strokeDasharray="1 1" />
+                {/* Inner Hub */}
+                <circle cx="50" cy="50" r="15" fill="#0f172a" stroke="#fbbf24" strokeWidth="1" />
             </svg>
          </div>
       </div>
@@ -277,7 +268,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
             onClick={spinWheel} 
             disabled={spinning || !selectedBet || balance < betAmount}
           >
-            {spinning ? 'SPINNING...' : 'PLACE BET & SPIN'}
+            {spinning ? 'SPINNING...' : 'SPIN'}
           </Button>
         </div>
       </div>

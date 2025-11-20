@@ -51,7 +51,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
   };
 
   const startGame = () => {
-    if (balance < bet) return alert("Insufficient funds!");
+    if (balance < bet) return;
     playSound('chip');
     onEndGame(-bet);
     const newDeck = createDeck();
@@ -68,7 +68,10 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     setTimeout(() => playSound('cardFlip'), 200);
 
     if (calculateScore(pHand) === 21) {
-        triggerAI("Player got a natural Blackjack!");
+        // Instant win handled in next effect or check
+        // But usually player waits for dealer peek. 
+        // For simplicity, let player stand/play.
+        triggerAI("Blackjack dealt!");
     }
   };
 
@@ -84,7 +87,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
       setGameState('finished');
       setResultMessage('BUST');
       playSound('lose');
-      triggerAI("Player busted at Blackjack");
+      triggerAI("Busted.");
     }
   };
 
@@ -99,6 +102,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         let currentDealerHand = [...dealerHand];
         let currentDeck = [...deck];
         
+        // Dealer hits on soft 17 logic omitted for simplicity, hits until >= 17
         while (calculateScore(currentDealerHand) < 17) {
           await new Promise(r => setTimeout(r, 800));
           playSound('cardFlip');
@@ -113,19 +117,19 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         
         setGameState('finished');
         if (dScore > 21 || pScore > dScore) {
-          setResultMessage('YOU WIN');
+          setResultMessage('WIN');
           onEndGame(bet * 2);
           playSound('win');
-          triggerAI("Player wins against dealer in Blackjack");
+          triggerAI("Player wins hand.");
         } else if (pScore === dScore) {
           setResultMessage('PUSH');
           onEndGame(bet);
           playSound('click');
-          triggerAI("Blackjack push tie");
+          triggerAI("Push. Money back.");
         } else {
-          setResultMessage('DEALER WINS');
+          setResultMessage('LOSE');
           playSound('lose');
-          triggerAI("Dealer wins Blackjack hand");
+          triggerAI("House wins.");
         }
       };
       playDealer();
@@ -134,34 +138,36 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
 
   const CardUI: React.FC<{ card: Card, hidden?: boolean, index: number }> = ({ card, hidden, index }) => (
     <div 
-      className={`w-24 h-36 md:w-32 md:h-44 rounded-xl flex flex-col items-center justify-between p-2 shadow-2xl transform transition-all duration-500 hover:-translate-y-2 select-none relative ${hidden ? 'bg-slate-800 border-2 border-slate-600' : 'bg-white'}`}
+      className={`w-28 h-40 md:w-36 md:h-52 rounded-xl flex flex-col justify-between p-3 shadow-2xl transition-all duration-500 select-none relative border border-slate-200
+        ${hidden ? 'bg-slate-800 border-slate-600' : 'bg-white'}
+      `}
       style={{ 
-        marginLeft: index > 0 ? '-50px' : '0',
+        marginLeft: index > 0 ? '-60px' : '0',
         zIndex: index,
-        transform: `rotate(${index * 2 - 2}deg) translateY(${index * -2}px)`
+        transform: `translateY(${index * 2}px)`
       }}
     >
       {hidden ? (
-        <div className="w-full h-full rounded-lg bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-50 flex items-center justify-center">
-            <div className="w-10 h-16 rounded-full border-2 border-slate-500/30"></div>
+        <div className="w-full h-full rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full border-4 border-slate-600"></div>
         </div>
       ) : (
         <>
           <div className="w-full flex justify-start">
-            <div className={`text-lg font-bold leading-none flex flex-col items-center ${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>
+            <div className={`text-2xl font-bold leading-none flex flex-col items-center ${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>
                 <span>{card.value}</span>
-                <span className="text-sm">{card.suit}</span>
+                <span className="text-lg">{card.suit}</span>
             </div>
           </div>
           
-          <span className={`text-5xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>
+          <span className={`text-6xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>
             {card.suit}
           </span>
 
           <div className="w-full flex justify-end transform rotate-180">
-            <div className={`text-lg font-bold leading-none flex flex-col items-center ${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>
+            <div className={`text-2xl font-bold leading-none flex flex-col items-center ${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>
                 <span>{card.value}</span>
-                <span className="text-sm">{card.suit}</span>
+                <span className="text-lg">{card.suit}</span>
             </div>
           </div>
         </>
@@ -172,131 +178,92 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
   return (
     <div className="flex flex-col items-center w-full max-w-5xl mx-auto p-4">
       
-      {/* Game Header / Status */}
-      <div className="w-full flex justify-between items-center bg-slate-900/80 backdrop-blur p-4 rounded-2xl border border-slate-700 mb-6 shadow-lg">
-          <div className="flex items-center gap-4">
-              <div className="text-xs text-slate-400 uppercase tracking-widest font-bold">
-                  Pays 3:2 • Dealer stands on 17
-              </div>
-          </div>
-          <div className="font-mono font-bold text-emerald-400 animate-pulse">
-              {gameState === 'betting' ? 'PLACE YOUR BET' : gameState === 'playing' ? 'YOUR TURN' : gameState === 'dealerTurn' ? 'DEALER TURN' : 'ROUND OVER'}
-          </div>
-      </div>
-
-      {/* Table Surface */}
-      <div className="w-full bg-[#203832] rounded-[40px] p-8 md:p-16 border-[12px] border-[#152622] shadow-[inset_0_0_100px_rgba(0,0,0,0.5)] relative min-h-[500px] flex flex-col justify-between overflow-hidden">
+      {/* CLEAN TABLE SURFACE */}
+      <div className="w-full bg-emerald-900 rounded-[3rem] p-8 md:p-12 border-[1px] border-emerald-800 shadow-2xl relative min-h-[600px] flex flex-col justify-between overflow-hidden">
           
+          {/* TOP STATUS BAR */}
+          <div className="absolute top-0 left-0 right-0 h-16 bg-black/20 backdrop-blur flex items-center justify-between px-8 border-b border-emerald-800/30">
+               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Blackjack Pays 3:2</div>
+               
+               {gameState !== 'betting' && (
+                   <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-wider animate-fade-in ${
+                       gameState === 'finished' ? (resultMessage === 'WIN' ? 'bg-emerald-500 text-emerald-950' : resultMessage === 'LOSE' ? 'bg-red-500 text-white' : 'bg-slate-500 text-white')
+                       : 'bg-black/40 text-white'
+                   }`}>
+                       {gameState === 'finished' ? resultMessage : gameState === 'dealerTurn' ? "DEALER'S TURN" : "YOUR TURN"}
+                   </div>
+               )}
+
+               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Dealer stands on 17</div>
+          </div>
+
           {/* Dealer Area */}
-          <div className="flex flex-col items-center relative z-10">
-             <div className="flex items-center gap-2 mb-4 opacity-70">
-                 <span className="text-[10px] font-bold uppercase text-white tracking-[0.2em]">Dealer</span>
-                 {gameState !== 'playing' && gameState !== 'betting' && (
-                     <span className="bg-black/30 px-2 py-0.5 rounded text-white text-xs font-mono">{calculateScore(dealerHand)}</span>
-                 )}
-             </div>
-             <div className="flex justify-center h-44">
+          <div className="flex flex-col items-center mt-12 relative z-10">
+             <div className="flex justify-center h-52">
                 {dealerHand.length > 0 ? dealerHand.map((c, i) => (
                     <CardUI key={i} card={c} hidden={gameState === 'playing' && i === 0} index={i} />
                 )) : (
-                    <div className="w-32 h-44 border-2 border-dashed border-white/10 rounded-xl flex items-center justify-center text-white/10 text-sm font-bold">DEALER</div>
+                    <div className="w-36 h-52 border-2 border-dashed border-emerald-700/50 rounded-xl flex items-center justify-center text-emerald-700/50 font-bold">DEALER</div>
                 )}
              </div>
+             {dealerHand.length > 0 && (
+                 <div className="mt-4 bg-black/30 px-3 py-1 rounded-full text-emerald-100 font-mono font-bold text-sm">
+                     {gameState === 'playing' ? '?' : calculateScore(dealerHand)}
+                 </div>
+             )}
           </div>
 
-          {/* Result Overlay */}
-          {gameState === 'finished' && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-slide-up">
-                  <div className={`px-12 py-6 rounded-2xl border-2 shadow-2xl backdrop-blur-xl flex flex-col items-center ${
-                      resultMessage === 'YOU WIN' ? 'bg-emerald-900/80 border-emerald-500' :
-                      resultMessage === 'BUST' || resultMessage === 'DEALER WINS' ? 'bg-red-900/80 border-red-500' :
-                      'bg-slate-800/80 border-slate-500'
-                  }`}>
-                      <h2 className={`text-4xl font-black uppercase tracking-tighter ${
-                          resultMessage === 'YOU WIN' ? 'text-gold-400' : 'text-white'
-                      }`}>
-                          {resultMessage}
-                      </h2>
-                      {resultMessage === 'YOU WIN' && <div className="text-gold-200 font-mono mt-2 text-lg">+${bet * 2}</div>}
-                  </div>
-              </div>
-          )}
-
           {/* Player Area */}
-          <div className="flex flex-col items-center relative z-10">
-             <div className="flex justify-center h-44 mb-4">
+          <div className="flex flex-col items-center relative z-10 mb-4">
+             {playerHand.length > 0 && (
+                 <div className="mb-4 bg-emerald-500 text-emerald-950 px-4 py-1 rounded-full font-mono font-bold text-lg shadow-lg">
+                     {calculateScore(playerHand)}
+                 </div>
+             )}
+             <div className="flex justify-center h-52">
                 {playerHand.length > 0 ? playerHand.map((c, i) => (
                     <CardUI key={i} card={c} index={i} />
                 )) : (
-                    <div className="w-32 h-44 border-2 border-dashed border-white/10 rounded-xl flex items-center justify-center text-white/10 text-sm font-bold">YOU</div>
-                )}
-             </div>
-             <div className="flex items-center gap-2 opacity-90">
-                <span className="text-[10px] font-bold uppercase text-emerald-400 tracking-[0.2em]">Player</span>
-                {playerHand.length > 0 && (
-                    <span className="bg-emerald-500 text-emerald-950 px-2 py-0.5 rounded text-xs font-mono font-bold shadow-lg">{calculateScore(playerHand)}</span>
+                    <div className="w-36 h-52 border-2 border-dashed border-emerald-700/50 rounded-xl flex items-center justify-center text-emerald-700/50 font-bold">PLAYER</div>
                 )}
              </div>
           </div>
       </div>
 
-      {/* Controls */}
-      <div className="mt-6 w-full max-w-2xl bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
+      {/* CONTROLS */}
+      <div className="mt-8 w-full max-w-xl">
         {gameState === 'betting' ? (
-          <div className="flex gap-4 items-center">
+          <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex gap-4 items-center">
              <div className="flex-1">
-                 <div className="text-xs text-slate-500 font-bold uppercase mb-2">Wager Amount</div>
-                 <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500">$</span>
-                    <input 
-                        type="number" 
-                        value={bet}
-                        onChange={(e) => setBet(Number(e.target.value))}
-                        className="w-full bg-slate-800 border border-slate-700 h-12 pl-8 rounded-lg text-white font-mono focus:border-gold-500 outline-none"
-                    />
-                 </div>
+                 <div className="text-xs text-slate-500 font-bold uppercase mb-1">Bet Amount</div>
+                 <input 
+                    type="number" 
+                    value={bet}
+                    onChange={(e) => setBet(Number(e.target.value))}
+                    className="w-full bg-slate-800 border border-slate-700 h-12 pl-4 rounded-lg text-white font-mono text-lg focus:border-emerald-500 outline-none"
+                />
              </div>
-             <Button variant="success" onClick={startGame} disabled={balance < bet} className="h-12 px-8 text-lg font-bold">DEAL CARDS</Button>
+             <Button variant="success" onClick={startGame} disabled={balance < bet} className="h-14 px-8 text-lg font-bold rounded-xl">DEAL</Button>
           </div>
         ) : (
            <div className="flex justify-center gap-4">
-              <Button 
-                variant="primary" 
-                onClick={hit} 
-                disabled={gameState !== 'playing'} 
-                className="w-32 h-14 rounded-full text-lg font-bold bg-slate-800 border-2 border-slate-600 hover:bg-slate-700"
-              >
-                HIT
-              </Button>
-              <Button 
-                variant="danger" 
-                onClick={stand} 
-                disabled={gameState !== 'playing'} 
-                className="w-32 h-14 rounded-full text-lg font-bold bg-rose-600 border-2 border-rose-800 hover:bg-rose-500"
-              >
-                STAND
-              </Button>
+              {gameState === 'playing' && (
+                  <>
+                    <Button variant="primary" onClick={hit} className="w-32 h-16 rounded-xl text-xl font-bold bg-emerald-600 hover:bg-emerald-500 border-emerald-700">HIT</Button>
+                    <Button variant="danger" onClick={stand} className="w-32 h-16 rounded-xl text-xl font-bold">STAND</Button>
+                  </>
+              )}
               {gameState === 'finished' && (
-                 <Button 
-                    variant="gold" 
-                    onClick={() => setGameState('betting')} 
-                    className="w-40 h-14 rounded-full text-lg font-bold shadow-[0_0_20px_#fbbf24]"
-                 >
-                    NEW HAND
-                 </Button>
+                 <Button variant="gold" onClick={() => setGameState('betting')} className="w-48 h-16 rounded-xl text-xl font-bold animate-bounce">NEW HAND</Button>
               )}
            </div>
         )}
       </div>
 
-      {/* AI Commentary */}
+      {/* AI Commentary Toast */}
       {aiCommentary && (
-          <div className="fixed bottom-6 right-6 z-50 max-w-xs bg-slate-900/90 backdrop-blur p-4 rounded-xl border border-emerald-500/30 shadow-2xl animate-slide-up">
-              <div className="flex items-center gap-2 mb-1">
-                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase">Ace says</span>
-              </div>
-              <p className="text-sm text-slate-200">{aiCommentary}</p>
+          <div className="fixed bottom-8 right-8 z-50 bg-slate-900/90 backdrop-blur px-6 py-4 rounded-xl border border-emerald-500/20 shadow-2xl animate-slide-up max-w-xs">
+              <p className="text-emerald-400 text-sm font-medium">{aiCommentary}</p>
           </div>
       )}
 

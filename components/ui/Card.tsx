@@ -40,19 +40,29 @@ const GameIcon: React.FC<{ type: string }> = ({ type }) => {
     case GameType.SLOTS:
       return (
         <div className="relative w-24 h-24">
-           <div className="absolute inset-0 bg-gradient-to-b from-purple-900 to-slate-900 rounded-xl border-2 border-gold-500 shadow-xl overflow-hidden">
-               <div className="flex h-full justify-around items-center px-1 bg-black/20">
-                  <div className="w-6 h-16 bg-gradient-to-b from-slate-100 to-slate-300 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden">
-                      <span className="text-red-600 font-bold text-lg animate-bounce">7</span>
+           {/* Cabinet Frame */}
+           <div className="absolute inset-0 bg-gradient-to-br from-purple-900 to-slate-900 rounded-xl border-4 border-gold-500 shadow-2xl overflow-hidden flex flex-col">
+               {/* Top Banner */}
+               <div className="h-6 bg-gold-600 w-full flex items-center justify-center border-b border-gold-400">
+                  <div className="w-16 h-2 bg-black/30 rounded-full"></div>
+               </div>
+               {/* Reels Area */}
+               <div className="flex-1 flex justify-around items-center px-1 bg-black/40 shadow-inner">
+                  <div className="w-5 h-12 bg-slate-100 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden shadow-[inset_0_2px_5px_rgba(0,0,0,0.2)]">
+                      <span className="text-red-600 font-bold text-lg animate-[spin_1s_ease-in-out_infinite]">7</span>
                   </div>
-                  <div className="w-6 h-16 bg-gradient-to-b from-slate-100 to-slate-300 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden">
-                      <span className="text-purple-600 font-bold text-lg animate-bounce delay-75">🍇</span>
+                  <div className="w-5 h-12 bg-slate-100 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden shadow-[inset_0_2px_5px_rgba(0,0,0,0.2)]">
+                      <span className="text-purple-600 font-bold text-lg animate-[spin_1.2s_ease-in-out_infinite]">💎</span>
                   </div>
-                  <div className="w-6 h-16 bg-gradient-to-b from-slate-100 to-slate-300 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden">
-                      <span className="text-gold-600 font-bold text-lg animate-bounce delay-150">🔔</span>
+                  <div className="w-5 h-12 bg-slate-100 rounded-sm border border-slate-400 flex items-center justify-center overflow-hidden shadow-[inset_0_2px_5px_rgba(0,0,0,0.2)]">
+                      <span className="text-gold-600 font-bold text-lg animate-[spin_1.5s_ease-in-out_infinite]">🍒</span>
                   </div>
                </div>
-               <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
+               {/* Button Panel */}
+               <div className="h-5 bg-slate-800 w-full border-t border-slate-600 flex items-center justify-center gap-1">
+                   <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                   <div className="w-8 h-2 rounded bg-slate-600"></div>
+               </div>
            </div>
         </div>
       );
@@ -62,7 +72,6 @@ const GameIcon: React.FC<{ type: string }> = ({ type }) => {
            {/* Wheel Base */}
            <div className="w-22 h-22 rounded-full border-4 border-gold-600 bg-slate-900 shadow-xl relative overflow-hidden animate-spin-slow">
               <svg viewBox="0 0 100 100" className="w-full h-full">
-                {/* Simple sectors */}
                 <path d="M50 50 L50 0 A50 50 0 0 1 85 15 Z" fill="#ef4444" />
                 <path d="M50 50 L85 15 A50 50 0 0 1 100 50 Z" fill="#1f2937" />
                 <path d="M50 50 L100 50 A50 50 0 0 1 85 85 Z" fill="#ef4444" />

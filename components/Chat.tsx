@@ -127,14 +127,13 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
   const initChatSession = () => {
     try {
       if (!isGeminiConfigured()) {
-          // Silent return - usage of fallback responses
           return;
       }
       
       chatSession.current = ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
-          systemInstruction: "You are 'Ace', a savvy, slang-using crypto gambler and advisor at 'Pump Casino'. You are NOT an AI assistant. You are a bro who loves high stakes. Speak casually, use crypto slang (wagmi, rekt, moon, paper hands). Keep advice mathematically sound but delivered informally. Max 2 sentences.",
+          systemInstruction: "You are 'Ace', a crypto casino gambler bro. You are tough, use slang like 'rekt', 'moon', 'wagmi'. Never use pet names like 'darling' or 'honey'. Keep it brief and cool.",
         },
       });
     } catch (e) {
@@ -205,7 +204,6 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
         initChatSession();
       }
 
-      // Artificial delay for realism if using fallback
       const delay = isGeminiConfigured() ? 0 : 1000 + Math.random() * 1000;
 
       try {
