@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
-import { ai } from '../services/geminiService';
+import { ai, isGeminiConfigured } from '../services/geminiService';
 import { supabase } from '../services/database';
-import { Chat as GeminiChat } from "@google/genai";
+import { Chat as GeminiChat, RealtimeChannel } from '@supabase/supabase-js'; // Type import only
+import { ChatSession } from "@google/genai";
 
 // Cyberpunk/Robot Avatar Style
 const AVATAR_BASE_URL = "https://api.dicebear.com/9.x/bottts-neutral/svg";
@@ -35,7 +36,8 @@ const OFFLINE_RESPONSES = [
     "For Roulette, betting on Red/Black gives you nearly 50% odds, excluding the Green zero.",
     "I'm currently offline for maintenance, but my advice? Bet with your head, not over it.",
     "A 50/50 chance is the best you'll get in a fair game. Good luck.",
-    "Never chase your losses. That's rule #1."
+    "Never chase your losses. That's rule #1.",
+    "If you're looking for patterns in random numbers, you're looking for ghosts."
 ];
 
 export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
@@ -48,30 +50,59 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
   const globalEndRef = useRef<HTMLDivElement>(null);
   const aiEndRef = useRef<HTMLDivElement>(null);
   
+  // Persist the Supabase channel
+  const channelRef = useRef<any>(null); // using any to avoid strict RealtimeChannel type issues in some environments
+  
   // Gemini Chat Instance
-  const chatSession = useRef<GeminiChat | null>(null);
+  const chatSession = useRef<ChatSession | null>(null);
 
   // --- 1. Realtime Global Chat Logic ---
   useEffect(() => {
     if (!supabase) return;
 
-    const channel = supabase.channel('global_lounge');
+    // Clean up previous channel if exists
+    if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+    }
+
+    // Create a single persistent channel
+    const channel = supabase.channel('global_lounge', {
+        config: {
+            broadcast: { self: true } // We will receive our own messages too to confirm receipt
+        }
+    });
 
     channel
         .on('broadcast', { event: 'message' }, ({ payload }) => {
-            // Receive message from others
-            setGlobalMessages(prev => [...prev.slice(-50), payload as ChatMessage]);
+            // Check if we already have this message (deduplication for self:true)
+            setGlobalMessages(prev => {
+                if (prev.some(m => m.id === payload.id)) return prev;
+                return [...prev.slice(-50), payload as ChatMessage];
+            });
         })
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log("Joined Global Chat");
+            }
+        });
+
+    channelRef.current = channel;
 
     return () => {
-        supabase.removeChannel(channel);
+        if (channelRef.current) {
+            supabase.removeChannel(channelRef.current);
+        }
     };
   }, []);
 
   // --- 2. AI Logic ---
   const initChatSession = () => {
     try {
+      if (!isGeminiConfigured()) {
+          console.warn("Gemini API Key is missing.");
+          return;
+      }
+      
       chatSession.current = ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
@@ -107,26 +138,26 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
 
     if (activeTab === 'global') {
       const newMessage: ChatMessage = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + Math.random().toString().slice(2,6),
         username: myUsername,
         message: input,
         isBot: false,
         avatar: myAvatar
       };
       
-      // 1. Update local state immediately
+      // Optimistically update UI immediately
       setGlobalMessages(prev => [...prev.slice(-50), newMessage]);
-      
-      // 2. Broadcast to others
-      if (supabase) {
-        await supabase.channel('global_lounge').send({
+      setInput('');
+
+      // Send via the persistent channel
+      if (channelRef.current) {
+         await channelRef.current.send({
             type: 'broadcast',
             event: 'message',
             payload: newMessage
-        });
+        }).catch((err: any) => console.error("Broadcast error", err));
       }
-      
-      setInput('');
+
     } else {
       // --- AI CHAT ---
       const userMsg: ChatMessage = {
@@ -141,13 +172,13 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
       setInput('');
       setIsTyping(true);
 
-      // Re-init if lost
+      // Try to re-init if null
       if (!chatSession.current) {
         initChatSession();
       }
 
       try {
-        if (chatSession.current) {
+        if (chatSession.current && isGeminiConfigured()) {
           const response = await chatSession.current.sendMessage({ message: prompt });
           const responseText = response.text;
 
@@ -164,23 +195,29 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
               throw new Error("Empty response");
           }
         } else {
-            throw new Error("Session null");
+            throw new Error("AI not configured or session null");
         }
       } catch (error) {
-           console.warn("AI Error, using fallback", error);
-           // Fallback logic so AI "works" even without key
-           const randomFallback = OFFLINE_RESPONSES[Math.floor(Math.random() * OFFLINE_RESPONSES.length)];
+           console.warn("AI Error/Offline, using fallback", error);
            
+           // Select relevant fallback based on keywords
+           let fallbackText = OFFLINE_RESPONSES[Math.floor(Math.random() * OFFLINE_RESPONSES.length)];
+           const lowerPrompt = prompt.toLowerCase();
+           if (lowerPrompt.includes('blackjack')) fallbackText = "In Blackjack, basic strategy reduces the house edge to under 1%. Never take insurance.";
+           if (lowerPrompt.includes('roulette')) fallbackText = "Roulette is pure chance. The wheel has no memory.";
+           if (lowerPrompt.includes('martingale')) fallbackText = "Martingale works until it doesn't. Exponential growth hits table limits fast.";
+
            const fallbackMsg: ChatMessage = {
             id: Date.now().toString() + '_fallback',
             username: 'Casino Host',
-            message: randomFallback,
+            message: fallbackText,
             isBot: true,
             avatar: getAvatar('Casino Host')
            };
+           
            setTimeout(() => {
                setAiMessages(prev => [...prev, fallbackMsg]);
-           }, 500);
+           }, 800);
       } finally {
           setIsTyping(false);
       }
