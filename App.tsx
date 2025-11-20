@@ -14,13 +14,6 @@ import { GAME_CONFIGS } from './constants';
 import { db, isLive, supabase } from './services/database'; 
 import { Logo } from './components/ui/Logo';
 
-const PhantomIcon = () => (
-  <svg className="w-7 h-7" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="64" cy="64" r="64" fill="transparent"/>
-    <path fillRule="evenodd" clipRule="evenodd" d="M29.5866 28.582C36.6149 21.6483 47.4381 18.915 58.4661 20.6507C84.7125 24.7802 94.577 48.7762 89.0953 70.6466C85.5001 84.9875 72.7899 96.9808 58.1703 98.1187C47.605 98.9415 37.2477 94.0253 31.6226 85.0523C24.9163 74.3562 24.9163 60.7965 24.9163 49.1911C24.9163 41.3688 26.4314 34.8529 29.5866 28.582ZM45.5625 45.7672C45.5625 48.3517 47.6577 50.4469 50.2422 50.4469C52.8267 50.4469 54.9219 48.3517 54.9219 45.7672C54.9219 43.1827 52.8267 41.0875 50.2422 41.0875C47.6577 41.0875 45.5625 43.1827 45.5625 45.7672ZM72.4746 45.7672C72.4746 48.3517 74.5698 50.4469 77.1543 50.4469C79.7388 50.4469 81.834 48.3517 81.834 45.7672C81.834 43.1827 79.7388 41.0875 77.1543 41.0875C74.5698 41.0875 72.4746 43.1827 72.4746 45.7672Z" fill="white"/>
-  </svg>
-);
-
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentGame, setCurrentGame] = useState<GameType | null>(null);
@@ -237,7 +230,11 @@ const App: React.FC = () => {
                     {isConnecting ? (
                         <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                        <PhantomIcon />
+                        <img 
+                            src="https://cryptocurrencyjobs.co/startups/assets/logos/phantom.ff999c1c66f66d0cff16447b6bb0c416dacf058413c915e424bbdacbc3ead6cf.jpg"
+                            alt="Phantom"
+                            className="w-8 h-8 rounded-full border border-white/20"
+                        />
                     )}
                     <span className="text-white font-bold text-lg tracking-wide">Connect Phantom</span>
                 </div>
