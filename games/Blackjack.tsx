@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardSuit } from '../types';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface BlackjackProps {
   onEndGame: (winnings: number) => void;
@@ -18,9 +19,12 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
   const [bet, setBet] = useState(10);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
-  const [resultMessage, setResultMessage] = useState('');
   const [aiCommentary, setAiCommentary] = useState('');
   const [deck, setDeck] = useState<Card[]>([]);
+  
+  // New Feature: Winning Streak
+  const [streak, setStreak] = useState(0);
+  const [resultOverlay, setResultOverlay] = useState<{show: boolean, type: 'win'|'lose'|'neutral', msg: string, amount?: number}>({ show: false, type: 'neutral', msg: '' });
 
   const createDeck = () => {
     const deck: Card[] = [];
@@ -61,18 +65,11 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     setPlayerHand(pHand);
     setDealerHand(dHand);
     setGameState('playing');
-    setResultMessage('');
+    setResultOverlay({ show: false, type: 'neutral', msg: '' });
     setAiCommentary('');
     
     playSound('cardFlip');
     setTimeout(() => playSound('cardFlip'), 200);
-
-    if (calculateScore(pHand) === 21) {
-        // Instant win handled in next effect or check
-        // But usually player waits for dealer peek. 
-        // For simplicity, let player stand/play.
-        triggerAI("Blackjack dealt!");
-    }
   };
 
   const hit = () => {
@@ -85,7 +82,8 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     
     if (calculateScore(newHand) > 21) {
       setGameState('finished');
-      setResultMessage('BUST');
+      setResultOverlay({ show: true, type: 'lose', msg: 'BUSTED' });
+      setStreak(0); // Reset streak on bust
       playSound('lose');
       triggerAI("Busted.");
     }
@@ -102,7 +100,6 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         let currentDealerHand = [...dealerHand];
         let currentDeck = [...deck];
         
-        // Dealer hits on soft 17 logic omitted for simplicity, hits until >= 17
         while (calculateScore(currentDealerHand) < 17) {
           await new Promise(r => setTimeout(r, 800));
           playSound('cardFlip');
@@ -117,17 +114,21 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         
         setGameState('finished');
         if (dScore > 21 || pScore > dScore) {
-          setResultMessage('WIN');
-          onEndGame(bet * 2);
+          const winAmount = bet * 2;
+          setResultOverlay({ show: true, type: 'win', msg: 'YOU WIN', amount: winAmount });
+          setStreak(s => s + 1); // Increment streak
+          onEndGame(winAmount);
           playSound('win');
           triggerAI("Player wins hand.");
         } else if (pScore === dScore) {
-          setResultMessage('PUSH');
+          setResultOverlay({ show: true, type: 'neutral', msg: 'PUSH', amount: bet });
+          setStreak(0); // Reset streak on push
           onEndGame(bet);
           playSound('click');
           triggerAI("Push. Money back.");
         } else {
-          setResultMessage('LOSE');
+          setResultOverlay({ show: true, type: 'lose', msg: 'DEALER WINS' });
+          setStreak(0); // Reset streak on loss
           playSound('lose');
           triggerAI("House wins.");
         }
@@ -181,20 +182,20 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
       {/* CLEAN TABLE SURFACE */}
       <div className="w-full bg-emerald-900 rounded-[3rem] p-8 md:p-12 border-[1px] border-emerald-800 shadow-2xl relative min-h-[600px] flex flex-col justify-between overflow-hidden">
           
+          <ResultOverlay isOpen={resultOverlay.show} message={resultOverlay.msg} amount={resultOverlay.amount} type={resultOverlay.type} />
+
           {/* TOP STATUS BAR */}
           <div className="absolute top-0 left-0 right-0 h-16 bg-black/20 backdrop-blur flex items-center justify-between px-8 border-b border-emerald-800/30">
                <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Blackjack Pays 3:2</div>
                
-               {gameState !== 'betting' && (
-                   <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-wider animate-fade-in ${
-                       gameState === 'finished' ? (resultMessage === 'WIN' ? 'bg-emerald-500 text-emerald-950' : resultMessage === 'LOSE' ? 'bg-red-500 text-white' : 'bg-slate-500 text-white')
-                       : 'bg-black/40 text-white'
-                   }`}>
-                       {gameState === 'finished' ? resultMessage : gameState === 'dealerTurn' ? "DEALER'S TURN" : "YOUR TURN"}
-                   </div>
-               )}
+               {/* Winning Streak Display */}
+               <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full border border-emerald-500/30">
+                  <span className="text-orange-500 text-lg animate-pulse">🔥</span>
+                  <span className="text-white font-bold font-mono">{streak}</span>
+                  <span className="text-xs text-emerald-400 uppercase font-bold ml-1">Streak</span>
+               </div>
 
-               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Dealer stands on 17</div>
+               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest hidden md:block">Dealer stands on 17</div>
           </div>
 
           {/* Dealer Area */}

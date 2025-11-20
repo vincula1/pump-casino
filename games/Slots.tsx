@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface SlotsProps {
   onEndGame: (winnings: number) => void;
@@ -72,13 +73,9 @@ const SYMBOLS = [
     { id: 'cherry', component: SymbolCherry, payout: 5 },
 ];
 
-// --- REEL LOGIC ---
+const SYMBOL_HEIGHT = 128;
+const REEL_STRIP_LENGTH = 40;
 
-const SYMBOL_HEIGHT = 128; // Height in pixels
-const VISIBLE_SYMBOLS = 1;
-const REEL_STRIP_LENGTH = 40; // How many symbols in the strip
-
-// Generate a random strip
 const generateStrip = () => {
     return Array.from({ length: REEL_STRIP_LENGTH }, () => 
         Math.floor(Math.random() * SYMBOLS.length)
@@ -92,7 +89,7 @@ const Reel = ({
   onStop 
 }: { 
   isSpinning: boolean, 
-  stopIndex: number, // The SYMBOL index (0-4) we want to land on
+  stopIndex: number, 
   delay: number, 
   onStop: () => void 
 }) => {
@@ -101,39 +98,26 @@ const Reel = ({
     const [transition, setTransition] = useState('none');
 
     useEffect(() => {
-        // Initialize position: Center the first symbol
         setTranslateY(0);
     }, []);
 
     useEffect(() => {
         if (isSpinning) {
-            // 1. Prepare the strip
-            // We want the final symbol (at bottom of strip) to be 'stopIndex'
-            // Let's regenerate strip so the last item is stopIndex
             const newStrip = generateStrip();
             newStrip[newStrip.length - 1] = stopIndex;
-            // Ensure the top of the new strip matches the bottom of the old one for continuity?
-            // For simplicity, we just hard reset to 0 (top) then spin to bottom
             
             setStrip(newStrip);
             setTranslateY(0);
             setTransition('none');
 
-            // 2. Trigger Spin after a tiny delay to allow DOM to register reset
             setTimeout(() => {
-                // Spin to the end of the strip
-                // We want the last symbol to align. 
-                // Height of strip = length * SYMBOL_HEIGHT
-                // Final Y = -(length - 1) * SYMBOL_HEIGHT
                 const finalY = -((newStrip.length - 1) * SYMBOL_HEIGHT);
-                
                 setTransition(`transform ${2 + (delay/1000)}s cubic-bezier(0.2, 0.1, 0.1, 1)`);
                 setTranslateY(finalY);
 
-                // 3. Callback when done
                 setTimeout(() => {
                    onStop();
-                }, (2000 + delay)); // Duration matches css
+                }, (2000 + delay)); 
             }, 50);
         }
     }, [isSpinning, stopIndex, delay]);
@@ -156,9 +140,7 @@ const Reel = ({
                      );
                  })}
              </div>
-             {/* Overlay Shadow for depth */}
              <div className="absolute inset-0 pointer-events-none shadow-[inset_0_10px_30px_rgba(0,0,0,0.8),inset_0_-10px_30px_rgba(0,0,0,0.8)]"></div>
-             {/* Shine */}
              <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
         </div>
     );
@@ -171,7 +153,7 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
   const [results, setResults] = useState<number[]>([0, 1, 2]);
   const [aiCommentary, setAiCommentary] = useState('');
   const [winLine, setWinLine] = useState<boolean | null>(null);
-  const [winAmount, setWinAmount] = useState(0);
+  const [resultOverlay, setResultOverlay] = useState<{show: boolean, type: 'win'|'lose'|'neutral', msg: string, amount?: number}>({ show: false, type: 'neutral', msg: '' });
 
   const triggerAI = async (context: string) => {
     const msg = await generateHypeMessage(context);
@@ -184,7 +166,7 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
     onEndGame(-bet);
     setIsSpinning(true);
     setWinLine(null);
-    setWinAmount(0);
+    setResultOverlay({ show: false, type: 'neutral', msg: '' });
     setAiCommentary('');
 
     // Determine results immediately
@@ -209,23 +191,20 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
       let win = 0;
       let isWin = false;
 
-      // 3 of a kind
       if (i1 === i2 && i2 === i3) {
           win = bet * SYMBOLS[i1].payout;
           isWin = true;
       } 
-      // 2 of a kind (Any 2 match)
       else if (i1 === i2 || i2 === i3 || i1 === i3) {
-          const matchIdx = i1 === i2 ? i1 : i3;
           win = bet * 2;
           isWin = true;
       }
 
       if (isWin) {
           setWinLine(true);
-          setWinAmount(win);
           onEndGame(win);
           playSound('win');
+          setResultOverlay({ show: true, type: 'win', msg: 'WINNER', amount: win });
           triggerAI(`Slots Jackpot! Player won ${win}!`);
       } else {
           setWinLine(false);
@@ -245,7 +224,6 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
             {/* Neon Top Light */}
             <div className={`absolute -top-3 left-1/2 -translate-x-1/2 w-2/3 h-4 rounded-full blur-md transition-all duration-500 ${winLine ? 'bg-emerald-500 shadow-[0_0_40px_#10b981]' : 'bg-purple-600/30'}`}></div>
 
-            {/* Logo Area */}
             <div className="text-center mb-6">
                 <h2 className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-gold-300 to-gold-600 drop-shadow-sm">
                     NEON SLOTS
@@ -255,6 +233,8 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
             {/* REELS CONTAINER */}
             <div className="bg-slate-950 p-4 rounded-2xl border-8 border-slate-800 relative shadow-2xl overflow-hidden">
                  
+                 <ResultOverlay isOpen={resultOverlay.show} message={resultOverlay.msg} amount={resultOverlay.amount} type={resultOverlay.type} />
+
                  {/* Glass Reflection */}
                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none z-30 rounded-lg"></div>
 
@@ -269,17 +249,11 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
                  </div>
             </div>
 
-            {/* Info / Win Display */}
-            <div className="mt-6 mb-6 h-16 bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center">
-                {winAmount > 0 ? (
-                    <div className="text-4xl font-black text-emerald-400 animate-bounce drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]">
-                        WIN ${winAmount}
-                    </div>
-                ) : (
-                    <div className="text-slate-500 text-sm font-bold uppercase tracking-widest">
-                        {isSpinning ? 'GOOD LUCK...' : 'PRESS SPIN TO START'}
-                    </div>
-                )}
+            {/* Info Bar */}
+            <div className="mt-6 mb-6 h-12 bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center">
+                <div className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+                    {isSpinning ? 'GOOD LUCK...' : 'PRESS SPIN TO START'}
+                </div>
             </div>
 
             {/* Controls */}

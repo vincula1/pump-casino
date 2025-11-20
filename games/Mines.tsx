@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface MinesProps {
   onEndGame: (winnings: number) => void;
@@ -19,6 +20,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
   const [revealed, setRevealed] = useState<boolean[]>(Array(GRID_SIZE).fill(false));
   const [aiCommentary, setAiCommentary] = useState('');
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
+  const [resultOverlay, setResultOverlay] = useState<{show: boolean, type: 'win'|'lose'|'neutral', msg: string, amount?: number}>({ show: false, type: 'neutral', msg: '' });
   
   const [lastClicked, setLastClicked] = useState<number | null>(null);
 
@@ -42,6 +44,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
     setRevealed(Array(GRID_SIZE).fill(false));
     setGameState('playing');
     setAiCommentary('');
+    setResultOverlay({ show: false, type: 'neutral', msg: '' });
     setCurrentMultiplier(1.0);
     setLastClicked(null);
   };
@@ -59,6 +62,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
       setGameState('lost');
       triggerAI(`Boom! Mine at tile ${index}.`);
       setRevealed(Array(GRID_SIZE).fill(true));
+      setResultOverlay({ show: true, type: 'lose', msg: 'BUSTED' });
     } else {
       playSound('gem');
       const revealedCount = newRevealed.filter(r => r).length;
@@ -74,7 +78,8 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
     onEndGame(winAmount);
     setGameState('cashed');
     triggerAI(`Secured the bag. ${currentMultiplier.toFixed(2)}x win.`);
-    setRevealed(Array(GRID_SIZE).fill(true)); 
+    setRevealed(Array(GRID_SIZE).fill(true));
+    setResultOverlay({ show: true, type: 'win', msg: 'CASHED', amount: winAmount });
   };
 
   return (
@@ -129,7 +134,10 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
          </div>
 
          {/* Grid */}
-         <div className="flex-1 bg-slate-900 p-4 md:p-8 rounded-[2rem] border-4 border-slate-800 shadow-2xl order-1 lg:order-2 flex items-center justify-center">
+         <div className="flex-1 bg-slate-900 p-4 md:p-8 rounded-[2rem] border-4 border-slate-800 shadow-2xl order-1 lg:order-2 flex items-center justify-center relative overflow-hidden">
+            
+            <ResultOverlay isOpen={resultOverlay.show} message={resultOverlay.msg} amount={resultOverlay.amount} type={resultOverlay.type} />
+
             <div className="grid grid-cols-5 gap-2 md:gap-3 w-full max-w-[500px] aspect-square">
                 {Array.from({ length: GRID_SIZE }).map((_, i) => {
                     const isRevealed = revealed[i];

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface DiceProps {
   onEndGame: (winnings: number) => void;
@@ -15,6 +16,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
   const [roll, setRoll] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
   const [aiCommentary, setAiCommentary] = useState('');
+  const [resultOverlay, setResultOverlay] = useState<{show: boolean, type: 'win'|'lose'|'neutral', msg: string, amount?: number}>({ show: false, type: 'neutral', msg: '' });
 
   const multiplier = parseFloat((98 / (100 - prediction)).toFixed(2));
   const winChance = 100 - prediction;
@@ -29,6 +31,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
     onEndGame(-bet);
     setRolling(true);
     setRoll(null);
+    setResultOverlay({ show: false, type: 'neutral', msg: '' });
     setAiCommentary('');
     playSound('click');
 
@@ -50,9 +53,11 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
         const win = bet * multiplier;
         onEndGame(win);
         playSound('win');
+        setResultOverlay({ show: true, type: 'win', msg: 'WIN', amount: win });
         triggerAI(`Player won ${win.toFixed(0)} dollars on dice roll`);
       } else {
         playSound('lose');
+        setResultOverlay({ show: true, type: 'lose', msg: 'LOSE' });
         triggerAI("Player lost on dice roll");
       }
     }, 1000);
@@ -60,13 +65,15 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
 
   return (
     <div className="flex flex-col items-center max-w-4xl mx-auto p-6 md:p-10">
-      {/* AI Commentary */}
       <div className="h-12 flex items-center justify-center w-full mb-4">
           {aiCommentary && <span className="text-gold-400 font-medium animate-fade-in text-center bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700/50 backdrop-blur">{aiCommentary}</span>}
       </div>
       
       {/* Visualizer */}
       <div className="w-full bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 md:p-12 border border-slate-700 shadow-[0_0_40px_rgba(0,0,0,0.3)] mb-8 relative overflow-hidden">
+        
+        <ResultOverlay isOpen={resultOverlay.show} message={resultOverlay.msg} amount={resultOverlay.amount} type={resultOverlay.type} />
+
         <div className="flex justify-between text-slate-500 text-xs font-bold mb-4 uppercase tracking-widest">
              <span>0</span>
              <span>25</span>
