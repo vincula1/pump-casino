@@ -65,64 +65,12 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
   const [spinning, setSpinning] = useState(false);
   const [aiCommentary, setAiCommentary] = useState('');
   
-  // We keep track of "offset" for the CSS animation to simulate infinite scroll
-  const [offsets, setOffsets] = useState([0, 0, 0]);
-
   const triggerAI = async (context: string) => {
     const msg = await generateHypeMessage(context);
     setAiCommentary(msg);
   };
 
   const getRandomSymbolIndex = () => Math.floor(Math.random() * SYMBOLS_MAP.length);
-
-  const spin = async () => {
-    if (balance < bet) return;
-    onEndGame(-bet);
-    setSpinning(true);
-    setAiCommentary('');
-    playSound('click');
-    playSound('spin');
-
-    // Start animation: Move offsets significantly to simulate multiple rotations
-    // We want them to stop one by one
-    const baseRotations = 20; 
-    const symbolHeight = 100; // Assume 100% translate per symbol for calculation logic
-    
-    // Determine outcome first
-    const outcome = [getRandomSymbolIndex(), getRandomSymbolIndex(), getRandomSymbolIndex()];
-    
-    // Delays for each reel stop
-    setTimeout(() => stopReel(0, outcome[0]), 1500);
-    setTimeout(() => stopReel(1, outcome[1]), 2000);
-    setTimeout(() => stopReel(2, outcome[2]), 2500);
-  };
-
-  const stopReel = (reelIndex: number, finalSymbolIndex: number) => {
-      setReelState(prev => {
-          const next = [...prev];
-          next[reelIndex] = finalSymbolIndex;
-          return next;
-      });
-      
-      // Play stop sound
-      playSound('chip');
-
-      // If last reel
-      if (reelIndex === 2) {
-          setTimeout(() => checkWin(finalSymbolIndex), 500); // Small delay for effect
-      }
-  };
-
-  const checkWin = (lastReelVal: number) => {
-      setSpinning(false);
-      
-      // Check state using the functional update or ref would be safer, but since we set state in sequence,
-      // we need to read the current 'reelState' carefully. Actually, the 'reelState' variable in closure might be stale.
-      // A better way is to just pass the full outcome array to this function or use a Ref for outcome.
-      // For simplicity, we'll rely on the React state update which triggers a re-render. 
-      // WAIT: The closure here captures the initial state. We need to use the values we decided on.
-      // Let's refactor `spin` to store outcome in a ref or variable available to closure.
-  };
 
   // Refactored Logic for correctness
   const [targetOutcome, setTargetOutcome] = useState<number[] | null>(null);
@@ -161,7 +109,7 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
           }
           setTargetOutcome(null);
       }
-  }, [spinning, targetOutcome]);
+  }, [spinning, targetOutcome, bet, onEndGame]);
 
 
   const handleSpinClick = () => {
@@ -216,47 +164,6 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-20 pointer-events-none bg-[length:100%_4px,3px_100%]"></div>
            
            <div className="flex gap-2 md:gap-4 h-48 md:h-64 bg-slate-900 rounded-xl p-2 md:p-4 relative z-10">
-                {[0, 1, 2].map((reelIdx) => {
-                    const symbol = SYMBOLS_MAP[reelState[reelIdx]];
-                    const isReelSpinning = spinning && (
-                        (reelIdx === 0 && targetOutcome) || 
-                        (reelIdx === 1 && reelState[0] === targetOutcome?.[0] && targetOutcome) || 
-                        (reelIdx === 2 && reelState[1] === targetOutcome?.[1] && targetOutcome)
-                    );
-                    // Logic: If spinning is true, and we haven't locked this reel yet (based on timing logic implicit in handleSpinClick timeouts)
-                    // Actually handleSpinClick updates state sequentially. So we can check if `targetOutcome[i]` == `reelState[i]` to see if locked? 
-                    // No, randomness might pick same symbol.
-                    // Simplification: The timeout updates the state. If we are between start and that timeout, show blur.
-                    
-                    // Better visual logic:
-                    // 0-1000ms: All blur
-                    // 1000-1600ms: Reel 1 fixed, 2&3 blur
-                    // 1600-2200ms: Reel 1&2 fixed, 3 blur
-                    
-                    let blur = false;
-                    if (spinning) {
-                        if (reelIdx === 0 && !targetOutcome) blur = true; // Initial
-                        if (reelIdx === 0 && targetOutcome && reelState[0] !== targetOutcome[0]) blur = true; // Should not happen with my logic but...
-                        // Actually let's just use a simpler "isLocked" state derived from timing or just separate state vars
-                        // For now, using the class based on the 'spinning' var is visually acceptable if we stagger the state updates
-                        // Wait, the state updates *stop* the blur. So if 'spinning' is true, we just need to know if THIS reel has stopped.
-                        
-                        // A reel stops when its state matches the target. But target might be same as start.
-                        // Let's just Assume:
-                        // The reel is blurry until the specific timeout fires.
-                        // Since we can't easily check that in render without extra state, let's add `activeReels` state.
-                    }
-                    
-                    // To keep it simple: We will rely on a CSS animation that is applied when `spinning` is true.
-                    // BUT we need to stop it individually.
-                    // Let's restart: The `handleSpinClick` sets the state. 
-                    // We can assume if `spinning` is true, we show a "blur strip" unless the state just updated.
-                    // This is getting complex. Let's just use the "Spinning" state for the blur effect
-                    // and since we update state sequentially, the "Blur" needs to be conditional.
-                    
-                    // Let's use a `reelsSpinning` array state boolean.
-                })}
-                
                 <Reel 
                     idx={0} 
                     spinning={spinning} 
@@ -325,11 +232,12 @@ const Reel = ({ idx, spinning, stopDelay, finalSymbol, onStop }: any) => {
             return () => clearTimeout(timeout);
         } else {
             setIsMoving(false);
+            setDisplayedSymbol(finalSymbol); // Ensure sync on reset
         }
     }, [spinning, stopDelay, finalSymbol]); // Only re-run if spinning starts
 
-    const SymbolComp = SYMBOLS_MAP[isMoving ? 0 : displayedSymbol].component; 
-    // If moving, we can show a random one or a blur component
+    const SymbolComp = SYMBOLS_MAP[displayedSymbol] ? SYMBOLS_MAP[displayedSymbol].component : SYMBOLS_MAP[0].component; 
+    // Fallback to 0 if undefined to prevent crash
 
     return (
         <div className="flex-1 bg-white rounded-lg border-2 border-slate-300 overflow-hidden relative shadow-inner">
