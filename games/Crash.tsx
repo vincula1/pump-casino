@@ -34,8 +34,19 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
       setAiCommentary(msg);
   };
 
+  // Sync Ref with State
   useEffect(() => {
       gameStateRef.current = gameState;
+      
+      // Start Loop when state changes to running
+      if (gameState === 'running') {
+          startTimeRef.current = Date.now();
+          loop();
+      }
+
+      return () => {
+          if (reqRef.current) cancelAnimationFrame(reqRef.current);
+      };
   }, [gameState]);
 
   // Betting Timer
@@ -52,7 +63,8 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
             setCountdown((prev) => {
                 if (prev <= 0.1) {
                     clearInterval(interval);
-                    setTimeout(() => startRunningPhase(), 0);
+                    // Trigger state change, which triggers the useEffect above to start loop
+                    setGameState('running');
                     return 0;
                 }
                 return prev - 0.1;
@@ -62,19 +74,14 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
     return () => clearInterval(interval);
   }, [gameState]);
 
-  const startRunningPhase = () => {
-      if (gameStateRef.current === 'running') return;
-      setGameState('running');
-      gameStateRef.current = 'running';
-      
-      // Crash Logic
-      const r = Math.random();
-      const crash = Math.max(1.00, (0.99 / (1 - r)));
-      crashPointRef.current = crash;
-      
-      startTimeRef.current = Date.now();
-      loop();
-  };
+  // Initialize Crash Point on transition to running
+  useEffect(() => {
+      if (gameState === 'running') {
+        const r = Math.random();
+        const crash = Math.max(1.00, (0.99 / (1 - r)));
+        crashPointRef.current = crash;
+      }
+  }, [gameState]);
 
   const loop = () => {
     if (gameStateRef.current !== 'running') return;
@@ -226,8 +233,8 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
          </div>
       </div>
 
-      {/* INTEGRATED INFO / WIN DISPLAY */}
-      <div className="mt-0 mb-6 h-16 w-full bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center shadow-inner">
+      {/* INTEGRATED INFO / WIN DISPLAY - Matches Slots Style (mt-6) */}
+      <div className="mt-6 mb-6 h-16 w-full bg-black/40 rounded-xl border border-slate-700/50 flex items-center justify-center shadow-inner">
           {cashedOut && winAmount > 0 ? (
                <div className="text-4xl font-black text-emerald-400 animate-bounce drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]">
                    WIN ${winAmount.toFixed(2)}

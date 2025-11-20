@@ -8,8 +8,10 @@ export default defineConfig(({ mode }) => {
   // Safe extraction of variables with user provided fallbacks
   const supabaseUrl = env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || 'https://wkblzroluuljlsklxyeb.supabase.co';
   const supabaseKey = env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrYmx6cm9sdXVsamxza2x4eWViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1ODYxMzgsImV4cCI6MjA3OTE2MjEzOH0.HpPtkq8gGZGH0-WDMyoFMuTEZwU64j397NJNLBmld1A';
-  // Injecting the user provided API key directly here
-  const apiKey = env.API_KEY || env.VITE_API_KEY || 'AIzaSyDOsg8tqQ0hAYTtS4wk4a_rhgRrkRYnTdE';
+  
+  // Use the environment variable exclusively. 
+  // If not provided, it will be undefined, causing the app to use fallback offline modes instead of crashing with 403s.
+  const apiKey = env.API_KEY || env.VITE_API_KEY;
 
   return {
     plugins: [react()],
