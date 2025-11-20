@@ -1,10 +1,21 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   background-color: #0f172a;
   color: #f8fafc;
+  overflow-x: hidden;
+}
+
+/* Tabular nums for numbers (balance, timer) */
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Custom Scrollbar */

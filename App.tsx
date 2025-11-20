@@ -12,6 +12,14 @@ import { Mines } from './games/Mines';
 import { User, GameType } from './types';
 import { GAME_CONFIGS } from './constants';
 import { db, isLive } from './services/database'; 
+import { Logo } from './components/ui/Logo';
+
+const PhantomIcon = () => (
+  <svg className="w-7 h-7" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="64" cy="64" r="64" fill="transparent"/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M29.5866 28.582C36.6149 21.6483 47.4381 18.915 58.4661 20.6507C84.7125 24.7802 94.577 48.7762 89.0953 70.6466C85.5001 84.9875 72.7899 96.9808 58.1703 98.1187C47.605 98.9415 37.2477 94.0253 31.6226 85.0523C24.9163 74.3562 24.9163 60.7965 24.9163 49.1911C24.9163 41.3688 26.4314 34.8529 29.5866 28.582ZM45.5625 45.7672C45.5625 48.3517 47.6577 50.4469 50.2422 50.4469C52.8267 50.4469 54.9219 48.3517 54.9219 45.7672C54.9219 43.1827 52.8267 41.0875 50.2422 41.0875C47.6577 41.0875 45.5625 43.1827 45.5625 45.7672ZM72.4746 45.7672C72.4746 48.3517 74.5698 50.4469 77.1543 50.4469C79.7388 50.4469 81.834 48.3517 81.834 45.7672C81.834 43.1827 79.7388 41.0875 77.1543 41.0875C74.5698 41.0875 72.4746 43.1827 72.4746 45.7672Z" fill="white"/>
+  </svg>
+);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -25,10 +33,8 @@ const App: React.FC = () => {
     const updateCounts = () => {
         const now = Date.now();
         const hour = new Date().getUTCHours();
-        
         const timeFactor = Math.sin((hour - 8) / 24 * 2 * Math.PI); 
         const baseUsers = 2500 + (1500 * timeFactor); 
-        
         const timeBlock = Math.floor(now / 10000);
         const fluctuation = (timeBlock * 9301 + 49297) % 200 - 100;
         
@@ -51,7 +57,6 @@ const App: React.FC = () => {
         };
 
         const totalDist = Object.values(distribution).reduce((a, b) => a + b, 0);
-        
         const newCounts: Record<string, number> = {};
         Object.keys(GAME_CONFIGS).forEach(key => {
             const percent = distribution[key as GameType] / totalDist;
@@ -61,7 +66,7 @@ const App: React.FC = () => {
     };
 
     updateCounts();
-    const interval = setInterval(updateCounts, 5000); // Update every 5s
+    const interval = setInterval(updateCounts, 5000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -72,17 +77,18 @@ const App: React.FC = () => {
         return provider;
       }
     }
-    
     const { solana } = window as any;
     if (solana?.isPhantom) {
         return solana;
     }
-
     return null;
   };
 
-  // CHECKER: More aggressive checks at startup to find wallet
+  // CHECKER: Only auto-connect if user didn't explicitly disconnect
   useEffect(() => {
+    const wasDisconnected = localStorage.getItem('explicitDisconnect') === 'true';
+    if (wasDisconnected) return;
+
     let attempts = 0;
     const checkProvider = setInterval(() => {
         attempts++;
@@ -91,40 +97,32 @@ const App: React.FC = () => {
             initWallet(provider);
             clearInterval(checkProvider);
         }
-        if (attempts > 20) clearInterval(checkProvider); // Try for 10 seconds
+        if (attempts > 10) clearInterval(checkProvider); 
     }, 500);
-    
     return () => clearInterval(checkProvider);
   }, []);
 
   const initWallet = async (provider: any) => {
-    // Only auto-connect if user didn't explicitly disconnect
-    const wasDisconnected = localStorage.getItem('explicitDisconnect') === 'true';
-    
-    if (!wasDisconnected) {
-        try {
-            // Eager connect (only if trusted)
-            const response = await provider.connect({ onlyIfTrusted: true });
-            if (response.publicKey) {
-                const walletAddr = response.publicKey.toString();
-                const userAccount = await db.getUser(walletAddr);
-                setUser(userAccount);
-            }
-        } catch (err) {
-            // Not trusted or not connected, do nothing
+    try {
+        // Silent connect attempt
+        const response = await provider.connect({ onlyIfTrusted: true });
+        if (response.publicKey) {
+            const walletAddr = response.publicKey.toString();
+            const userAccount = await db.getUser(walletAddr);
+            setUser(userAccount);
         }
+    } catch (err) {
+        // Not trusted or not connected, do nothing
     }
     
-    // Setup listeners
-    provider.removeAllListeners('accountChanged'); // Prevent duplicate listeners
+    // Listen for account changes
+    provider.removeAllListeners('accountChanged');
     provider.on('accountChanged', async (publicKey: any) => {
             if (publicKey) {
-                // User switched accounts in wallet
                 localStorage.removeItem('explicitDisconnect'); 
                 const userAccount = await db.getUser(publicKey.toString());
                 setUser(userAccount);
             } else {
-                // Phantom locked or disconnected via extension
                 setUser(null);
             }
     });
@@ -137,21 +135,19 @@ const App: React.FC = () => {
 
       if (provider) {
         try {
-          // Force connection prompt
+          // Explicit connect call
           const response = await provider.connect();
           const publicKey = response.publicKey.toString();
           
-          // IMPORTANT: Clear the disconnect flag so auto-connect works next time
           localStorage.removeItem('explicitDisconnect');
           
           const userAccount = await db.getUser(publicKey);
           setUser(userAccount);
-
         } catch (connErr) {
           console.warn("User rejected connection request", connErr);
         }
       } else {
-        window.open("https://phantom.app/", "_blank");
+        window.open('https://phantom.app/', '_blank');
       }
     } catch (err) {
       console.error("Connection error", err);
@@ -161,14 +157,14 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    // 1. Update state immediately
+    // 1. Flag disconnection
+    localStorage.setItem('explicitDisconnect', 'true');
+    
+    // 2. Clear State
     setUser(null);
     setCurrentGame(null);
 
-    // 2. Set flag to prevent auto-reconnect on refresh
-    localStorage.setItem('explicitDisconnect', 'true');
-
-    // 3. Attempt to disconnect provider (if supported)
+    // 3. Force disconnect from provider
     try {
         const provider = getPhantomProvider();
         if (provider) {
@@ -177,6 +173,9 @@ const App: React.FC = () => {
     } catch (e) {
         console.warn("Provider disconnect error", e);
     }
+
+    // 4. Force reload to ensure next connect is fresh and prompts user
+    window.location.reload();
   };
 
   const updateBalance = async (amount: number) => {
@@ -202,62 +201,46 @@ const App: React.FC = () => {
 
   if (!user) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center relative overflow-hidden bg-slate-950 text-white"
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-black"></div>
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-3xl pointer-events-none"></div>
-        
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-        
-        <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-slate-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex flex-col items-center mx-4 animate-fade-in">
-          
-          <div className="mb-12 transform scale-150">
-             {/* Animated Ring */}
-             <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
-                <div className="absolute inset-0 bg-gold-500/20 rounded-full blur-xl animate-pulse"></div>
-                <div className="w-20 h-20 border-4 border-slate-800 rounded-full relative z-10 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl">
-                     <div className="w-8 h-8 bg-gold-500 rounded rotate-45 shadow-[0_0_15px_#fbbf24]"></div>
-                </div>
-                <div className="absolute inset-0 border-t-4 border-gold-500 rounded-full animate-spin-slow"></div>
+      <div className="fixed inset-0 w-full h-full bg-[#0f172a] flex flex-col items-center justify-center p-6 z-50 font-sans selection:bg-emerald-500/30">
+         {/* Background Gradients */}
+         <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none"></div>
+         <div className="absolute bottom-[-20%] right-[-20%] w-[70%] h-[70%] rounded-full bg-purple-500/10 blur-[120px] pointer-events-none"></div>
+         
+         {/* Card */}
+         <div className="relative z-10 w-full max-w-md bg-slate-900/80 backdrop-blur-2xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center">
+             {/* Logo Area */}
+             <div className="mb-10 flex flex-col items-center gap-4">
+                 <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+                    <span className="text-5xl drop-shadow-md">🎰</span>
+                 </div>
+                 <div>
+                    <h1 className="text-4xl font-black text-white tracking-tighter">PUMP<span className="text-emerald-400">.</span>CASINO</h1>
+                    <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em] mt-2">Next Gen Crypto Gaming</p>
+                 </div>
              </div>
-          </div>
 
-          <div className="text-center mb-10">
-            <h1 className="text-5xl font-black text-white mb-2 tracking-tighter font-sans">PUMP<span className="text-emerald-500">.</span>CASINO</h1>
-            <p className="text-slate-400 font-medium text-sm tracking-wide uppercase">Next Gen Crypto Gaming</p>
-          </div>
-          
-          <button 
-            onClick={connectWallet}
-            disabled={isConnecting}
-            className="w-full group relative overflow-hidden rounded-xl bg-[#551BF9] hover:bg-[#6640f5] transition-all duration-200 p-4 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(85,27,249,0.3)] hover:shadow-[0_0_30px_rgba(85,27,249,0.5)] hover:-translate-y-1 active:translate-y-0"
-          >
-             {isConnecting ? (
-                <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span className="text-white font-bold">Connecting...</span>
+             {/* Connect Button */}
+             <button 
+                onClick={connectWallet}
+                disabled={isConnecting}
+                className="w-full group relative overflow-hidden rounded-xl bg-[#AB9FF2] hover:bg-[#9d8fee] active:bg-[#8f7fdb] transition-all duration-200 p-[2px] shadow-xl shadow-indigo-900/20"
+             >
+                <div className="relative h-16 bg-[#512da8] group-hover:bg-[#4527a0] rounded-[10px] flex items-center justify-center gap-3 transition-colors">
+                    {isConnecting ? (
+                        <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                        <PhantomIcon />
+                    )}
+                    <span className="text-white font-bold text-lg tracking-wide">Connect Phantom</span>
                 </div>
-             ) : (
-               <>
-                 <img 
-                    src="https://docs.phantom.com/mintlify-assets/_mintlify/favicons/phantom-e50e2e68/iJ-2hg6MaJphnoGv/_generated/favicon/apple-touch-icon.png" 
-                    alt="Phantom Wallet" 
-                    className="shrink-0 w-6 h-6 rounded-full" 
-                 />
-                 <span className="text-white font-bold text-lg tracking-wide">
-                    Connect Phantom
-                 </span>
-               </>
-             )}
-          </button>
-          
-          <div className="mt-8 text-center text-xs text-slate-600 font-medium max-w-xs">
-             By connecting, you agree to the Terms. <br/>
-             <span className="opacity-50 text-[10px]">{isLive ? 'System Online' : 'Offline Mode Active (DB Table Missing)'}</span>
-          </div>
-        </div>
+             </button>
+
+             {/* Footer info */}
+             <div className="mt-8 flex items-center gap-2 text-slate-500 text-xs font-medium">
+                <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`}></span>
+                {isLive ? 'System Online' : 'Offline Mode'}
+             </div>
+         </div>
       </div>
     );
   }
