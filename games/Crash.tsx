@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface CrashProps {
   onEndGame: (winnings: number) => void;
@@ -17,20 +18,20 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
   const [cashedOut, setCashedOut] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
   const [aiCommentary, setAiCommentary] = useState('');
-  const [countdown, setCountdown] = useState(10); // Reduced to 10s for faster pace
+  const [countdown, setCountdown] = useState(10); 
+  const [lastResult, setLastResult] = useState<{ status: 'WIN' | 'LOSE', amount: number } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reqRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
   const crashPointRef = useRef<number>(0);
-  const gameStateRef = useRef('betting'); // Ref for animation loop to access current state
+  const gameStateRef = useRef('betting'); 
 
   const triggerAI = async (context: string) => {
       const msg = await generateHypeMessage(context);
       setAiCommentary(msg);
   };
 
-  // Update ref when state changes
   useEffect(() => {
       gameStateRef.current = gameState;
   }, [gameState]);
@@ -41,13 +42,13 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
     if (gameState === 'betting') {
         setCountdown(10);
         setMultiplier(1.00);
+        setLastResult(null);
         drawGraph(1.00, 'betting');
         
         interval = setInterval(() => {
             setCountdown((prev) => {
                 if (prev <= 0.1) {
                     clearInterval(interval);
-                    // Trigger start in next tick to avoid state conflict
                     setTimeout(() => startRunningPhase(), 0);
                     return 0;
                 }
@@ -59,10 +60,9 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
   }, [gameState]);
 
   const startRunningPhase = () => {
-      if (gameStateRef.current === 'running') return; // Prevent double start
+      if (gameStateRef.current === 'running') return; 
       setGameState('running');
       
-      // Crash Point Logic: 1% Instant Crash
       const r = Math.random();
       const crash = Math.max(1.00, (0.99 / (1 - r)));
       crashPointRef.current = crash;
@@ -76,7 +76,7 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
 
     const now = Date.now();
     const elapsed = (now - startTimeRef.current) / 1000; 
-    const currentMult = 1 + (elapsed * elapsed * 0.05) + (elapsed * 0.05); // Growth function
+    const currentMult = 1 + (elapsed * elapsed * 0.05) + (elapsed * 0.05); 
     
     if (currentMult >= crashPointRef.current) {
         handleCrash(crashPointRef.current);
@@ -97,14 +97,15 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
       playSound('crash');
 
       if (betPlaced && !cashedOut) {
+          setLastResult({ status: 'LOSE', amount: -bet });
           triggerAI(`Crashed at ${finalValue.toFixed(2)}x.`);
       }
 
-      // Restart delay
       setTimeout(() => {
           setGameState('betting');
           setBetPlaced(false);
           setCashedOut(false);
+          setLastResult(null);
       }, 3000);
   };
 
@@ -120,11 +121,9 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
 
       ctx.clearRect(0, 0, w, h);
 
-      // Grid Lines
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      // Draw some static grid
       ctx.moveTo(0, h); ctx.lineTo(w, h);
       ctx.moveTo(0, 0); ctx.lineTo(0, h);
       ctx.stroke();
@@ -146,7 +145,6 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
       ctx.fillStyle = state === 'crashed' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)';
       ctx.fill();
 
-      // Rocket
       if (state !== 'crashed') {
           ctx.save();
           ctx.translate(x, y);
@@ -173,6 +171,7 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
       const win = bet * multiplier;
       onEndGame(win);
       playSound('win');
+      setLastResult({ status: 'WIN', amount: win - bet });
       triggerAI(`Cashed out at ${multiplier.toFixed(2)}x`);
   };
 
@@ -190,11 +189,15 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
 
       {/* Game Window */}
       <div className="relative w-full h-[400px] bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden mb-6">
+         
+         {/* Overlay Results */}
+         {lastResult && <ResultOverlay result={lastResult.status} amount={lastResult.amount} />}
+         
          <canvas ref={canvasRef} width={1000} height={400} className="w-full h-full" />
          
-         {/* Overlay */}
+         {/* Overlay Text (Timer/Mult) */}
          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-             {gameState === 'betting' && (
+             {gameState === 'betting' && !lastResult && (
                  <div className="text-center">
                      <div className="text-5xl font-mono font-black text-slate-200 mb-2">{countdown.toFixed(1)}s</div>
                      <div className="text-emerald-500 font-bold tracking-widest">NEXT ROUND</div>
@@ -205,8 +208,8 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
                      {multiplier.toFixed(2)}x
                  </div>
              )}
-             {gameState === 'crashed' && (
-                 <div className="text-center">
+             {gameState === 'crashed' && !lastResult && (
+                 <div className="text-center animate-scale-up">
                      <div className="text-7xl font-mono font-black text-rose-500 drop-shadow-[0_0_20px_rgba(244,63,94,0.5)]">
                          {multiplier.toFixed(2)}x
                      </div>

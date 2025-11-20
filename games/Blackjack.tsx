@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardSuit } from '../types';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface BlackjackProps {
   onEndGame: (winnings: number) => void;
@@ -18,7 +19,8 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
   const [bet, setBet] = useState(10);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
-  const [resultMessage, setResultMessage] = useState('');
+  const [resultMessage, setResultMessage] = useState<'WIN' | 'LOSE' | 'PUSH' | ''>('');
+  const [payout, setPayout] = useState(0);
   const [aiCommentary, setAiCommentary] = useState('');
   const [deck, setDeck] = useState<Card[]>([]);
 
@@ -62,15 +64,13 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     setDealerHand(dHand);
     setGameState('playing');
     setResultMessage('');
+    setPayout(0);
     setAiCommentary('');
     
     playSound('cardFlip');
     setTimeout(() => playSound('cardFlip'), 200);
 
     if (calculateScore(pHand) === 21) {
-        // Instant win handled in next effect or check
-        // But usually player waits for dealer peek. 
-        // For simplicity, let player stand/play.
         triggerAI("Blackjack dealt!");
     }
   };
@@ -85,7 +85,8 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
     
     if (calculateScore(newHand) > 21) {
       setGameState('finished');
-      setResultMessage('BUST');
+      setResultMessage('LOSE');
+      setPayout(-bet);
       playSound('lose');
       triggerAI("Busted.");
     }
@@ -102,7 +103,6 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         let currentDealerHand = [...dealerHand];
         let currentDeck = [...deck];
         
-        // Dealer hits on soft 17 logic omitted for simplicity, hits until >= 17
         while (calculateScore(currentDealerHand) < 17) {
           await new Promise(r => setTimeout(r, 800));
           playSound('cardFlip');
@@ -118,16 +118,19 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         setGameState('finished');
         if (dScore > 21 || pScore > dScore) {
           setResultMessage('WIN');
+          setPayout(bet * 2); // Total return (profit + stake) for visual simplicity, usually overlay shows profit
           onEndGame(bet * 2);
           playSound('win');
           triggerAI("Player wins hand.");
         } else if (pScore === dScore) {
           setResultMessage('PUSH');
+          setPayout(bet);
           onEndGame(bet);
           playSound('click');
           triggerAI("Push. Money back.");
         } else {
           setResultMessage('LOSE');
+          setPayout(-bet);
           playSound('lose');
           triggerAI("House wins.");
         }
@@ -181,16 +184,18 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
       {/* CLEAN TABLE SURFACE */}
       <div className="w-full bg-emerald-900 rounded-[3rem] p-8 md:p-12 border-[1px] border-emerald-800 shadow-2xl relative min-h-[600px] flex flex-col justify-between overflow-hidden">
           
+          {/* Result Overlay */}
+          {gameState === 'finished' && resultMessage && (
+             <ResultOverlay result={resultMessage} amount={resultMessage === 'WIN' ? payout - bet : resultMessage === 'PUSH' ? 0 : -bet} />
+          )}
+
           {/* TOP STATUS BAR */}
           <div className="absolute top-0 left-0 right-0 h-16 bg-black/20 backdrop-blur flex items-center justify-between px-8 border-b border-emerald-800/30">
                <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Blackjack Pays 3:2</div>
                
                {gameState !== 'betting' && (
-                   <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-wider animate-fade-in ${
-                       gameState === 'finished' ? (resultMessage === 'WIN' ? 'bg-emerald-500 text-emerald-950' : resultMessage === 'LOSE' ? 'bg-red-500 text-white' : 'bg-slate-500 text-white')
-                       : 'bg-black/40 text-white'
-                   }`}>
-                       {gameState === 'finished' ? resultMessage : gameState === 'dealerTurn' ? "DEALER'S TURN" : "YOUR TURN"}
+                   <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-wider animate-fade-in bg-black/40 text-white`}>
+                       {gameState === 'finished' ? 'ROUND OVER' : gameState === 'dealerTurn' ? "DEALER'S TURN" : "YOUR TURN"}
                    </div>
                )}
 
@@ -231,7 +236,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
       </div>
 
       {/* CONTROLS */}
-      <div className="mt-8 w-full max-w-xl">
+      <div className="mt-8 w-full max-w-xl relative z-20">
         {gameState === 'betting' ? (
           <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex gap-4 items-center">
              <div className="flex-1">
@@ -254,7 +259,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
                   </>
               )}
               {gameState === 'finished' && (
-                 <Button variant="gold" onClick={() => setGameState('betting')} className="w-48 h-16 rounded-xl text-xl font-bold animate-bounce">NEW HAND</Button>
+                 <Button variant="gold" onClick={() => setGameState('betting')} className="w-48 h-16 rounded-xl text-xl font-bold animate-bounce shadow-lg shadow-gold-500/20">NEW HAND</Button>
               )}
            </div>
         )}
@@ -262,7 +267,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
 
       {/* AI Commentary Toast */}
       {aiCommentary && (
-          <div className="fixed bottom-8 right-8 z-50 bg-slate-900/90 backdrop-blur px-6 py-4 rounded-xl border border-emerald-500/20 shadow-2xl animate-slide-up max-w-xs">
+          <div className="fixed bottom-8 right-8 z-50 bg-slate-900/90 backdrop-blur px-6 py-4 rounded-xl border border-emerald-500/20 shadow-2xl animate-slide-up max-w-xs pointer-events-none">
               <p className="text-emerald-400 text-sm font-medium">{aiCommentary}</p>
           </div>
       )}

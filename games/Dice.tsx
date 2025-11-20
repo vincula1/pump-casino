@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface DiceProps {
   onEndGame: (winnings: number) => void;
@@ -15,6 +16,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
   const [roll, setRoll] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
   const [aiCommentary, setAiCommentary] = useState('');
+  const [lastResult, setLastResult] = useState<{ status: 'WIN' | 'LOSE', amount: number } | null>(null);
 
   const multiplier = parseFloat((98 / (100 - prediction)).toFixed(2));
   const winChance = 100 - prediction;
@@ -29,6 +31,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
     onEndGame(-bet);
     setRolling(true);
     setRoll(null);
+    setLastResult(null);
     setAiCommentary('');
     playSound('click');
 
@@ -50,9 +53,11 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
         const win = bet * multiplier;
         onEndGame(win);
         playSound('win');
+        setLastResult({ status: 'WIN', amount: win - bet });
         triggerAI(`Player won ${win.toFixed(0)} dollars on dice roll`);
       } else {
         playSound('lose');
+        setLastResult({ status: 'LOSE', amount: -bet });
         triggerAI("Player lost on dice roll");
       }
     }, 1000);
@@ -66,7 +71,10 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
       </div>
       
       {/* Visualizer */}
-      <div className="w-full bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 md:p-12 border border-slate-700 shadow-[0_0_40px_rgba(0,0,0,0.3)] mb-8 relative overflow-hidden">
+      <div className="w-full bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 md:p-12 border border-slate-700 shadow-[0_0_40px_rgba(0,0,0,0.3)] mb-8 relative overflow-hidden min-h-[300px] flex flex-col justify-center">
+        
+        {lastResult && <ResultOverlay result={lastResult.status} amount={lastResult.amount} />}
+
         <div className="flex justify-between text-slate-500 text-xs font-bold mb-4 uppercase tracking-widest">
              <span>0</span>
              <span>25</span>
@@ -116,6 +124,7 @@ export const Dice: React.FC<DiceProps> = ({ onEndGame, balance }) => {
                 onChange={(e) => {
                     setPrediction(Number(e.target.value));
                     playSound('tick');
+                    setLastResult(null); // Clear result on interact
                 }}
                 disabled={rolling}
                 className="w-full h-4 bg-slate-700 rounded-full appearance-none cursor-pointer outline-none opacity-90 hover:opacity-100 transition-opacity"

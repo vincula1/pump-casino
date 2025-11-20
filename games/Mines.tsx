@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface MinesProps {
   onEndGame: (winnings: number) => void;
@@ -19,8 +20,8 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
   const [revealed, setRevealed] = useState<boolean[]>(Array(GRID_SIZE).fill(false));
   const [aiCommentary, setAiCommentary] = useState('');
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
-  
   const [lastClicked, setLastClicked] = useState<number | null>(null);
+  const [lastResult, setLastResult] = useState<{ status: 'WIN' | 'LOSE', amount: number } | null>(null);
 
   const triggerAI = async (context: string) => {
     const msg = await generateHypeMessage(context);
@@ -42,6 +43,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
     setRevealed(Array(GRID_SIZE).fill(false));
     setGameState('playing');
     setAiCommentary('');
+    setLastResult(null);
     setCurrentMultiplier(1.0);
     setLastClicked(null);
   };
@@ -57,6 +59,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
     if (mines.includes(index)) {
       playSound('explosion');
       setGameState('lost');
+      setLastResult({ status: 'LOSE', amount: -bet });
       triggerAI(`Boom! Mine at tile ${index}.`);
       setRevealed(Array(GRID_SIZE).fill(true));
     } else {
@@ -73,6 +76,7 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
     const winAmount = bet * currentMultiplier;
     onEndGame(winAmount);
     setGameState('cashed');
+    setLastResult({ status: 'WIN', amount: winAmount - bet });
     triggerAI(`Secured the bag. ${currentMultiplier.toFixed(2)}x win.`);
     setRevealed(Array(GRID_SIZE).fill(true)); 
   };
@@ -129,7 +133,10 @@ export const Mines: React.FC<MinesProps> = ({ onEndGame, balance }) => {
          </div>
 
          {/* Grid */}
-         <div className="flex-1 bg-slate-900 p-4 md:p-8 rounded-[2rem] border-4 border-slate-800 shadow-2xl order-1 lg:order-2 flex items-center justify-center">
+         <div className="flex-1 bg-slate-900 p-4 md:p-8 rounded-[2rem] border-4 border-slate-800 shadow-2xl order-1 lg:order-2 flex items-center justify-center relative">
+            {/* RESULT OVERLAY */}
+            {lastResult && <ResultOverlay result={lastResult.status} amount={lastResult.amount} />}
+
             <div className="grid grid-cols-5 gap-2 md:gap-3 w-full max-w-[500px] aspect-square">
                 {Array.from({ length: GRID_SIZE }).map((_, i) => {
                     const isRevealed = revealed[i];

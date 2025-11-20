@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
 import { GameEvent, GameType } from '../types';
+import { ResultOverlay } from '../components/ui/ResultOverlay';
 
 interface RouletteProps {
   onEndGame: (winnings: number) => void;
@@ -44,6 +45,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<{ number: number; color: string } | null>(null);
   const [aiCommentary, setAiCommentary] = useState('');
+  const [lastResult, setLastResult] = useState<{ status: 'WIN' | 'LOSE', amount: number } | null>(null);
 
   // Initialize with random rotation
   useEffect(() => {
@@ -62,6 +64,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
     onEndGame(-betAmount);
     setSpinning(true);
     setResult(null);
+    setLastResult(null);
     setAiCommentary('');
 
     // 1. Determine result
@@ -71,27 +74,14 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
     // 2. Calculate rotation
     const sliceAngle = 360 / 37;
-    // Target is to have the winning number at the TOP (0 degrees).
-    // The wheel renders starting from 0 at top going clockwise.
-    // If winning index is i, its center is at i * sliceAngle + half.
-    // To bring that to top, we rotate backwards by that amount.
-    // Or rotate forward by (360 - angle).
-    
-    const index = randomIndex; // Index in WHEEL_NUMBERS array
+    const index = randomIndex; 
     const targetAngleOnWheel = index * sliceAngle + (sliceAngle / 2);
     
-    // We need to add spins + correction
-    // Current rotation % 360
     const currentRot = rotation;
-    const spins = 5; // Number of full rotations
+    const spins = 5; 
     const degreesPerSpin = 360;
     
-    // We want final rotation to be: k * 360 + (360 - targetAngleOnWheel)
-    // But we must ensure we always add positive rotation to spin clockwise visually (CSS transform increases)
-    // Or if we want to spin clockwise, the wheel rotates right.
-    
     const targetRotation = (360 - targetAngleOnWheel); 
-    // Calculate minimal distance to reach this target mod 360 from current
     const currentMod = currentRot % 360;
     let dist = targetRotation - currentMod;
     if (dist < 0) dist += 360;
@@ -101,7 +91,6 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
 
     setRotation(finalRotation);
     
-    // Total duration 4s
     const duration = 4000;
 
     setTimeout(() => {
@@ -128,9 +117,11 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
         winnings = betAmount * payoutMultiplier;
         onEndGame(winnings); 
         playSound('win');
+        setLastResult({ status: 'WIN', amount: winnings - betAmount });
         triggerAI(`Roulette Hit! ${winningNumber} (${winningColor})`);
       } else {
         playSound('lose');
+        setLastResult({ status: 'LOSE', amount: -betAmount });
         triggerAI(`Missed. Result: ${winningNumber}`);
       }
 
@@ -150,13 +141,26 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
   };
 
   return (
-    <div className="flex flex-col items-center w-full p-4 md:p-6">
+    <div className="flex flex-col items-center w-full p-4 md:p-6 relative">
+      
       <div className="mb-8 h-8 text-gold-400 font-medium text-center min-h-[2rem]">
           {aiCommentary && <span className="animate-fade-in bg-slate-800/80 px-4 py-1 rounded-full border border-slate-700 shadow-lg">{aiCommentary}</span>}
       </div>
 
       {/* Realistic SVG Wheel */}
       <div className="relative w-[320px] h-[320px] md:w-[450px] md:h-[450px] mb-12 drop-shadow-2xl">
+         
+         {/* Overlay for result - positioned relative to this container or full screen? 
+             The requirement was "on the screen". Let's put it over the wheel.
+         */}
+         {lastResult && (
+             <div className="absolute inset-0 z-50 flex items-center justify-center">
+                 <div className="w-full h-full rounded-full overflow-hidden relative flex items-center justify-center">
+                    <ResultOverlay result={lastResult.status} amount={lastResult.amount} />
+                 </div>
+             </div>
+         )}
+
          {/* Pointer */}
          <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[20px] border-t-gold-500 drop-shadow-lg filter drop-shadow-md"></div>
 
@@ -208,7 +212,7 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
       
       {/* Result Display */}
       <div className="h-16 mb-8 flex items-center justify-center">
-         {result && (
+         {result && !lastResult && (
              <div className="flex flex-col items-center animate-slide-up">
                  <span className="text-slate-400 text-xs uppercase tracking-widest mb-1">Result</span>
                  <div className={`text-4xl font-black flex items-center gap-3 px-8 py-2 rounded-xl border-2 shadow-xl ${
@@ -227,21 +231,21 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
       <div className="bg-slate-800/80 p-6 md:p-8 rounded-3xl border border-slate-700/50 w-full max-w-4xl shadow-2xl backdrop-blur-sm">
         <div className="flex gap-4 mb-8 justify-center overflow-x-auto pb-2">
            <button 
-             onClick={() => { setSelectedBet('red'); playSound('click'); }}
+             onClick={() => { setSelectedBet('red'); playSound('click'); setLastResult(null); }}
              className={`flex-1 min-w-[100px] h-20 rounded-xl bg-red-600 hover:bg-red-500 font-bold text-white transition-all border-b-4 active:border-b-0 active:translate-y-1 ${selectedBet === 'red' ? 'border-gold-400 ring-4 ring-gold-500/30 scale-105 z-20' : 'border-red-800 opacity-90'}`}
            >
              <span className="text-xl block">RED</span>
              <div className="text-[10px] opacity-75 uppercase tracking-wider">2x</div>
            </button>
            <button 
-             onClick={() => { setSelectedBet('green'); playSound('click'); }}
+             onClick={() => { setSelectedBet('green'); playSound('click'); setLastResult(null); }}
              className={`w-24 h-20 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white transition-all border-b-4 active:border-b-0 active:translate-y-1 ${selectedBet === 'green' ? 'border-gold-400 ring-4 ring-gold-500/30 scale-105 z-20' : 'border-emerald-800 opacity-90'}`}
            >
              <span className="text-xl block">0</span>
              <div className="text-[10px] opacity-75 uppercase tracking-wider">14x</div>
            </button>
            <button 
-             onClick={() => { setSelectedBet('black'); playSound('click'); }}
+             onClick={() => { setSelectedBet('black'); playSound('click'); setLastResult(null); }}
              className={`flex-1 min-w-[100px] h-20 rounded-xl bg-slate-900 hover:bg-slate-800 font-bold text-white transition-all border-b-4 active:border-b-0 active:translate-y-1 ${selectedBet === 'black' ? 'border-gold-400 ring-4 ring-gold-500/30 scale-105 z-20' : 'border-black opacity-90'}`}
            >
              <span className="text-xl block">BLACK</span>
