@@ -327,13 +327,13 @@ const App: React.FC = () => {
             
             <div className="relative z-10 px-6">
                 <span className="inline-block py-1 px-3 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-400 text-xs font-bold uppercase tracking-widest mb-6">
-                    Pump Fund Stream
+                    Pump.fun Stream
                 </span>
                 <h1 className="text-5xl md:text-7xl font-black text-white mb-6 tracking-tighter drop-shadow-2xl">
                 FORTUNE FAVORS <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-gold-300 via-gold-500 to-yellow-600">THE BOLD</span>
                 </h1>
                 <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed font-medium">
-                This is a pump fund stream. The top three players win money in this fake simulated casino game. 
+                This is a pump.fun stream. The top three players win money in this fake simulated casino game. 
                 </p>
             </div>
           </div>
