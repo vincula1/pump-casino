@@ -137,34 +137,48 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
 
   const CardUI: React.FC<{ card: Card, hidden?: boolean, index: number }> = ({ card, hidden, index }) => (
     <div 
-      className={`w-24 h-36 md:w-28 md:h-40 rounded-xl flex flex-col items-center justify-center border-2 shadow-2xl transform transition-all duration-500 hover:-translate-y-2 ${hidden ? 'bg-slate-800 border-gold-600/50' : 'bg-white border-gray-200'}`}
+      className={`
+        w-24 h-36 md:w-32 md:h-44 rounded-xl flex flex-col items-center justify-center shadow-2xl transform transition-all duration-500 
+        ${hidden 
+            ? 'bg-gradient-to-br from-red-900 to-red-950 border-2 border-white/10' 
+            : 'bg-white border border-slate-200 hover:-translate-y-4 hover:rotate-1'
+        }
+      `}
       style={{ 
-        animation: 'fadeIn 0.5s ease-out',
-        marginLeft: index > 0 ? '-40px' : '0'
+        marginLeft: index > 0 ? '-50px' : '0',
+        zIndex: index,
+        animation: 'slideUp 0.5s ease-out forwards',
+        animationDelay: `${index * 0.1}s`,
+        perspective: '1000px',
+        transformStyle: 'preserve-3d'
       }}
     >
       {hidden ? (
-        <div className="w-full h-full rounded-xl bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-700 to-slate-900 flex items-center justify-center">
-             <div className="w-16 h-24 border-2 border-gold-500/20 rounded flex items-center justify-center">
-                <span className="text-gold-500/20 text-4xl font-serif font-bold">P</span>
-             </div>
+        // Card Back
+        <div className="w-full h-full rounded-xl p-2">
+            <div className="w-full h-full border-2 border-dashed border-red-500/30 rounded-lg bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.05)_10px,rgba(255,255,255,0.05)_20px)] flex items-center justify-center">
+                 <div className="w-12 h-12 rounded-full bg-red-900/50 border border-red-500/20 flex items-center justify-center">
+                    <span className="text-red-500/20 font-serif font-bold text-xl">♠</span>
+                 </div>
+            </div>
         </div>
       ) : (
-        <>
-          <div className="absolute top-2 left-2 text-lg font-bold leading-none">
-            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>{card.value}</div>
-            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>{card.suit}</div>
+        // Card Front
+        <div className="relative w-full h-full flex flex-col justify-between p-2 select-none">
+          <div className="text-lg font-bold leading-none text-left">
+            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-rose-600' : 'text-slate-900'}`}>{card.value}</div>
+            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-rose-600' : 'text-slate-900'} text-sm`}>{card.suit}</div>
           </div>
           
-          <span className={`text-5xl font-bold font-serif ${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>
+          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl font-black ${['♥', '♦'].includes(card.suit) ? 'text-rose-600' : 'text-slate-900'}`}>
             {card.suit}
-          </span>
-
-          <div className="absolute bottom-2 right-2 text-lg font-bold leading-none transform rotate-180">
-            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>{card.value}</div>
-            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-red-600' : 'text-slate-900'}`}>{card.suit}</div>
           </div>
-        </>
+
+          <div className="text-lg font-bold leading-none text-right transform rotate-180">
+            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-rose-600' : 'text-slate-900'}`}>{card.value}</div>
+            <div className={`${['♥', '♦'].includes(card.suit) ? 'text-rose-600' : 'text-slate-900'} text-sm`}>{card.suit}</div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -172,82 +186,111 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
   return (
     <div className="flex flex-col items-center w-full max-w-6xl mx-auto p-4 md:p-8">
       {/* AI Commentary Bar */}
-      <div className="w-full max-w-3xl mb-6">
-          <div className="bg-slate-900/80 backdrop-blur-md text-gold-400 p-4 rounded-xl border border-slate-700 text-center font-medium min-h-[3.5rem] flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.3)]">
-              {aiCommentary && <span className="animate-fade-in">{aiCommentary}</span>}
-          </div>
+      <div className="w-full max-w-3xl mb-6 min-h-[3rem] flex items-center justify-center">
+          {aiCommentary && (
+              <div className="bg-slate-900/80 backdrop-blur-md text-emerald-300 px-6 py-2 rounded-full border border-emerald-500/20 shadow-lg shadow-emerald-500/10 animate-fade-in">
+                  {aiCommentary}
+              </div>
+          )}
       </div>
 
-      <div className="w-full bg-emerald-900 rounded-[3rem] p-8 md:p-16 border-[16px] border-slate-800 shadow-2xl relative overflow-hidden">
-        {/* Felt Texture & Gradient */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-800 to-emerald-950"></div>
+      {/* Table */}
+      <div className="w-full bg-[#0f3d2e] rounded-[4rem] p-8 md:p-16 border-[16px] border-[#1a1f2e] shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+        {/* Realistic Felt Texture */}
+        <div className="absolute inset-0 opacity-30 bg-[url('https://www.transparenttextures.com/patterns/felt.png')] pointer-events-none mix-blend-overlay"></div>
+        {/* Vignette */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,rgba(0,0,0,0.6)_100%)] pointer-events-none"></div>
         
         {/* Table Markings */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-            <div className="w-[80%] h-[60%] border-2 border-emerald-400 rounded-[10rem]"></div>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
+            <div className="w-[600px] h-[300px] border-4 border-yellow-500 rounded-[150px]"></div>
+            <div className="absolute top-10 text-yellow-500 font-black text-2xl tracking-[0.5em] opacity-50">BLACKJACK PAYS 3 TO 2</div>
         </div>
         
-        <div className="relative z-10 flex flex-col items-center justify-between min-h-[400px]">
+        <div className="relative z-10 flex flex-col items-center justify-between min-h-[450px]">
             {/* Dealer Area */}
             <div className="flex flex-col items-center mb-12">
-            <h3 className="text-emerald-400/60 font-bold mb-4 tracking-[0.2em] uppercase text-xs">Dealer's Hand</h3>
-            <div className="flex justify-center pl-10">
-                {dealerHand.map((c, i) => (
-                <CardUI key={i} card={c} hidden={gameState === 'playing' && i === 0} index={i} />
-                ))}
-            </div>
-            {gameState !== 'playing' && gameState !== 'betting' && (
-                <div className="mt-4 text-emerald-900 font-bold bg-emerald-400 px-4 py-1 rounded-full shadow-lg animate-slide-up">{calculateScore(dealerHand)}</div>
-            )}
+                <div className="flex justify-center items-center relative h-44 min-w-[200px]">
+                    {dealerHand.length === 0 && gameState === 'betting' && (
+                        <div className="w-32 h-44 border-2 border-dashed border-emerald-500/20 rounded-xl flex items-center justify-center">
+                            <span className="text-emerald-500/20 font-bold tracking-widest uppercase text-xs">Dealer</span>
+                        </div>
+                    )}
+                    {dealerHand.map((c, i) => (
+                        <CardUI key={i} card={c} hidden={gameState === 'playing' && i === 0} index={i} />
+                    ))}
+                </div>
+                {gameState !== 'playing' && gameState !== 'betting' && (
+                    <div className="mt-4 text-emerald-950 font-black bg-emerald-400 px-6 py-1.5 rounded-full shadow-[0_0_20px_rgba(52,211,153,0.4)] animate-slide-up text-lg">
+                        {calculateScore(dealerHand)}
+                    </div>
+                )}
             </div>
 
-            {/* Center Info */}
+            {/* Result Overlay */}
             {gameState === 'finished' && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm rounded-[2rem]">
-                    <div className="text-center transform animate-slide-up">
-                        <h2 className={`text-6xl font-black mb-2 drop-shadow-lg ${resultMessage.includes('Win') ? 'text-gold-400' : 'text-white'}`}>
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[2px] rounded-[3rem] transition-all duration-300">
+                    <div className="text-center animate-slide-up scale-110">
+                        <h2 className={`text-7xl font-black mb-6 drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] tracking-tight ${
+                            resultMessage.includes('Win') ? 'text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600' : 'text-white'
+                        }`}>
                             {resultMessage.toUpperCase()}
                         </h2>
-                        <Button variant="gold" onClick={() => setGameState('betting')} className="px-12 py-4 text-xl shadow-2xl hover:scale-105">New Deal</Button>
+                        <Button variant="gold" onClick={() => setGameState('betting')} className="px-16 py-5 text-xl shadow-2xl hover:scale-105 transition-transform border-2 border-yellow-200">
+                            PLAY AGAIN
+                        </Button>
                     </div>
                 </div>
             )}
 
             {/* Player Area */}
             <div className="flex flex-col items-center">
-            <div className="flex justify-center pl-10 mb-4">
-                {playerHand.map((c, i) => <CardUI key={i} card={c} index={i} />)}
-            </div>
-            {gameState !== 'betting' && (
-                <div className="mb-2 text-emerald-900 font-bold bg-emerald-400 px-4 py-1 rounded-full shadow-lg">{calculateScore(playerHand)}</div>
-            )}
-            <h3 className="text-emerald-400/60 font-bold tracking-[0.2em] uppercase text-xs">Your Hand</h3>
+                <div className="flex justify-center items-center relative h-44 min-w-[200px] mb-6">
+                    {playerHand.length === 0 && gameState === 'betting' && (
+                        <div className="w-32 h-44 border-2 border-dashed border-emerald-500/20 rounded-xl flex items-center justify-center">
+                             <span className="text-emerald-500/20 font-bold tracking-widest uppercase text-xs">Player</span>
+                        </div>
+                    )}
+                    {playerHand.map((c, i) => <CardUI key={i} card={c} index={i} />)}
+                </div>
+                
+                {gameState !== 'betting' && (
+                    <div className="mb-2 text-emerald-950 font-black bg-emerald-400 px-6 py-1.5 rounded-full shadow-[0_0_20px_rgba(52,211,153,0.4)] text-lg">
+                        {calculateScore(playerHand)}
+                    </div>
+                )}
             </div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="mt-8 w-full max-w-xl bg-slate-800/90 backdrop-blur p-8 rounded-3xl border border-slate-700 shadow-2xl">
+      <div className="mt-8 w-full max-w-xl bg-slate-800/80 backdrop-blur-xl p-8 rounded-3xl border border-slate-700/50 shadow-2xl relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
+        
         {gameState === 'betting' ? (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 relative z-10">
             <div className="text-center">
-                <label className="text-slate-400 text-xs font-bold uppercase tracking-widest block mb-3">Wager Amount</label>
-                <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500 text-xl">$</span>
+                <label className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] block mb-4">Place Your Wager</label>
+                <div className="relative inline-block w-full">
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gold-500 text-2xl font-bold">$</span>
                     <input 
                         type="number" 
                         value={bet} 
                         onChange={(e) => setBet(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-600 p-4 pl-10 text-white rounded-xl font-mono text-3xl text-center focus:border-gold-500 outline-none transition-all shadow-inner"
+                        className="w-full bg-slate-900/80 border border-slate-600 p-5 pl-12 text-white rounded-2xl font-mono text-4xl text-center focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20 outline-none transition-all shadow-inner"
                     />
                 </div>
             </div>
-            <Button variant="success" onClick={startGame} disabled={balance < bet} fullWidth className="h-16 text-xl font-bold shadow-emerald-900/50 shadow-lg">DEAL CARDS</Button>
+            <Button variant="success" onClick={startGame} disabled={balance < bet} fullWidth className="h-20 text-2xl font-black shadow-[0_10px_40px_-10px_rgba(16,185,129,0.4)] tracking-wider">DEAL CARDS</Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-6">
-            <Button className="h-16 text-xl font-bold shadow-lg hover:-translate-y-1" variant="primary" onClick={hit} disabled={gameState !== 'playing'}>HIT</Button>
-            <Button className="h-16 text-xl font-bold shadow-lg hover:-translate-y-1" variant="danger" onClick={stand} disabled={gameState !== 'playing'}>STAND</Button>
+          <div className="grid grid-cols-2 gap-6 relative z-10">
+            <Button className="h-20 text-2xl font-black shadow-lg hover:-translate-y-1 bg-emerald-600 hover:bg-emerald-500 border-emerald-500" onClick={hit} disabled={gameState !== 'playing'}>
+                 HIT
+            </Button>
+            <Button className="h-20 text-2xl font-black shadow-lg hover:-translate-y-1 bg-rose-600 hover:bg-rose-500 border-rose-500" onClick={stand} disabled={gameState !== 'playing'}>
+                 STAND
+            </Button>
           </div>
         )}
       </div>

@@ -20,7 +20,7 @@ const INITIAL_GLOBAL_MESSAGES: ChatMessage[] = [
 ];
 
 const INITIAL_AI_MESSAGES: ChatMessage[] = [
-  { id: 'init', username: 'Casino Host', message: 'Welcome, High Roller. I am here to advise you. Ask me about odds, strategies, or game rules.', isBot: true, avatar: getAvatar('Casino Host') }
+  { id: 'init', username: 'Ace', message: 'Yo! Im Ace. I track the tables and crunch the numbers. Ask me anything about odds or strategy.', isBot: true, avatar: getAvatar('Casino Host') }
 ];
 
 interface ChatProps {
@@ -30,14 +30,24 @@ interface ChatProps {
 
 // Fallback responses if AI is offline
 const OFFLINE_RESPONSES = [
-    "The odds are always in the house's favor, but a smart player knows when to quit.",
-    "In Blackjack, always split Aces and Eights.",
-    "Martingale strategy is risky: doubling your bet after every loss requires a deep wallet.",
-    "For Roulette, betting on Red/Black gives you nearly 50% odds, excluding the Green zero.",
-    "I'm currently offline for maintenance, but my advice? Bet with your head, not over it.",
-    "A 50/50 chance is the best you'll get in a fair game. Good luck.",
-    "Never chase your losses. That's rule #1.",
-    "If you're looking for patterns in random numbers, you're looking for ghosts."
+    "Markets are looking choppy. Be careful out there.",
+    "If you're playing Blackjack, never split 10s. Rookie mistake.",
+    "Martingale is a quick way to get rekt if you hit the table limit.",
+    "Green zero is the dream killer. Watch out.",
+    "Im updating my neural net, gimme a sec. (Offline)",
+    "50/50? Feels more like 40/60 today tbh.",
+    "Don't chase losses, friend. Thats how the house wins.",
+    "Pattern recognition is a myth in random RNG. Just vibes."
+];
+
+const AI_THINKING_PHRASES = [
+  "Analyzing table patterns...",
+  "Calculating win probabilities...",
+  "Consulting strategy engine...",
+  "Simulating outcomes...",
+  "Reading market sentiment...",
+  "Reviewing game rules...",
+  "Optimizing advice..."
 ];
 
 export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
@@ -46,6 +56,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>(INITIAL_AI_MESSAGES);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [thinkingText, setThinkingText] = useState(AI_THINKING_PHRASES[0]);
   
   const globalEndRef = useRef<HTMLDivElement>(null);
   const aiEndRef = useRef<HTMLDivElement>(null);
@@ -55,6 +66,18 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
   
   // Gemini Chat Instance
   const chatSession = useRef<GenAIChat | null>(null);
+
+  // --- Thinking Indicator Logic ---
+  useEffect(() => {
+    if (isTyping) {
+      let i = 0;
+      const interval = setInterval(() => {
+        i = (i + 1) % AI_THINKING_PHRASES.length;
+        setThinkingText(AI_THINKING_PHRASES[i]);
+      }, 800);
+      return () => clearInterval(interval);
+    }
+  }, [isTyping]);
 
   // --- 1. Realtime Global Chat Logic ---
   useEffect(() => {
@@ -106,7 +129,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
       chatSession.current = ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
-          systemInstruction: "You are a sophisticated Strategic Gambling Advisor at 'Pump Casino'. You help users make decisions. Explain odds, suggest betting strategies (like Martingale, D'Alembert, Paroli), and clarify rules for Blackjack, Roulette, Slots, and Crash. Be concise (max 2 sentences). Be witty but helpful. If asked about the future, remind them it's random.",
+          systemInstruction: "You are Ace, a sharp, witty, and casual crypto gambler and casino host at 'Pump Casino'. You use slang (like 'wagmi', 'rekt', 'degen', 'pump', 'dump'). You give solid gambling advice but keep it brief and entertaining. Never lecture. If asked about future outcomes, say 'RNG is god' or similar.",
         },
       });
     } catch (e) {
@@ -171,6 +194,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
       const prompt = input;
       setInput('');
       setIsTyping(true);
+      setThinkingText(AI_THINKING_PHRASES[0]);
 
       // Try to re-init if null
       if (!chatSession.current) {
@@ -185,7 +209,7 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
           if (responseText) {
               const aiMsg: ChatMessage = {
                 id: Date.now().toString() + '_ai',
-                username: 'Casino Host',
+                username: 'Ace',
                 message: responseText,
                 isBot: true,
                 avatar: getAvatar('Casino Host')
@@ -203,59 +227,67 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
            // Select relevant fallback based on keywords
            let fallbackText = OFFLINE_RESPONSES[Math.floor(Math.random() * OFFLINE_RESPONSES.length)];
            const lowerPrompt = prompt.toLowerCase();
-           if (lowerPrompt.includes('blackjack')) fallbackText = "In Blackjack, basic strategy reduces the house edge to under 1%. Never take insurance.";
-           if (lowerPrompt.includes('roulette')) fallbackText = "Roulette is pure chance. The wheel has no memory.";
-           if (lowerPrompt.includes('martingale')) fallbackText = "Martingale works until it doesn't. Exponential growth hits table limits fast.";
+           if (lowerPrompt.includes('blackjack')) fallbackText = "Basic strategy says stand on 17. But sometimes you gotta risk it for the biscuit.";
+           if (lowerPrompt.includes('roulette')) fallbackText = "Wheel has no memory, fam. But Red is looking spicy.";
+           if (lowerPrompt.includes('martingale')) fallbackText = "Martingale works until you hit the limit and get liquidated. Careful.";
 
            const fallbackMsg: ChatMessage = {
             id: Date.now().toString() + '_fallback',
-            username: 'Casino Host',
+            username: 'Ace',
             message: fallbackText,
             isBot: true,
             avatar: getAvatar('Casino Host')
            };
            
+           // Add random delay to simulate typing offline
            setTimeout(() => {
                setAiMessages(prev => [...prev, fallbackMsg]);
-           }, 800);
+           }, 1000 + Math.random() * 1500);
       } finally {
-          setIsTyping(false);
+          // Keep typing indicator for a split second longer to feel natural
+          setTimeout(() => setIsTyping(false), 500);
       }
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-800 border-l border-slate-700 w-full hidden lg:flex shadow-xl">
+    <div className="flex flex-col h-full bg-slate-900 border-l border-slate-800 w-full hidden lg:flex shadow-2xl relative overflow-hidden">
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5 pointer-events-none"></div>
+      
       {/* Tabs */}
-      <div className="flex border-b border-slate-700 bg-slate-900">
+      <div className="flex border-b border-slate-800 bg-slate-950/50 backdrop-blur shrink-0 z-10">
         <button 
           onClick={() => setActiveTab('global')}
-          className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'global' ? 'text-gold-500 border-b-2 border-gold-500 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+          className={`flex-1 py-4 text-xs font-black uppercase tracking-[0.15em] transition-all ${activeTab === 'global' ? 'text-gold-400 border-b-2 border-gold-400 bg-gold-500/5' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
         >
           Global Chat
         </button>
         <button 
           onClick={() => setActiveTab('ai')}
-          className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === 'ai' ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+          className={`flex-1 py-4 text-xs font-black uppercase tracking-[0.15em] transition-all ${activeTab === 'ai' ? 'text-emerald-400 border-b-2 border-emerald-400 bg-emerald-500/5' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
         >
-          AI Advisor
+          Ace (AI)
         </button>
       </div>
       
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-800 scrollbar-thin scrollbar-thumb-slate-600">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-slate-700 z-10">
         {activeTab === 'global' ? (
            <>
              {globalMessages.map((msg) => (
-              <div key={msg.id} className={`flex gap-3 ${msg.isBot ? 'opacity-90' : ''} animate-fade-in`}>
-                <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+              <div key={msg.id} className={`flex gap-3 ${msg.isBot ? 'opacity-80' : ''} animate-fade-in group`}>
+                <div className="relative shrink-0">
+                    <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 shadow-lg" />
+                    {msg.isBot && <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900"></div>}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between mb-1">
-                    <span className={`font-semibold text-xs uppercase truncate ${msg.isBot ? 'text-gold-500' : msg.username === 'You' || msg.username === username ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    <span className={`font-bold text-[10px] uppercase tracking-wider truncate ${msg.isBot ? 'text-gold-400' : msg.username === 'You' || msg.username === username ? 'text-emerald-400' : 'text-slate-400'}`}>
                       {msg.username}
                     </span>
                   </div>
-                  <p className="text-slate-300 leading-relaxed break-words text-sm">{msg.message}</p>
+                  <p className="text-slate-300 leading-relaxed break-words text-xs font-medium">{msg.message}</p>
                 </div>
               </div>
             ))}
@@ -265,29 +297,39 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
           <>
              {aiMessages.map((msg) => (
               <div key={msg.id} className={`flex gap-3 ${msg.username === 'You' ? 'flex-row-reverse' : ''} animate-fade-in`}>
-                 <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
+                 <img src={msg.avatar} alt={msg.username} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 shadow-lg shrink-0" />
                  
-                 <div className={`flex flex-col max-w-[80%] ${msg.username === 'You' ? 'items-end' : 'items-start'}`}>
-                    <span className={`font-semibold text-xs uppercase mb-1 ${msg.isBot ? 'text-emerald-400' : 'text-slate-400'}`}>
+                 <div className={`flex flex-col max-w-[85%] ${msg.username === 'You' ? 'items-end' : 'items-start'}`}>
+                    <span className={`font-bold text-[10px] uppercase mb-1 tracking-wider ${msg.isBot ? 'text-emerald-400' : 'text-slate-500'}`}>
                         {msg.username}
                     </span>
-                    <div className={`p-3 rounded-xl break-words text-sm text-left shadow-lg ${
+                    <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-lg border ${
                         msg.username === 'You' 
-                        ? 'bg-slate-600 text-white rounded-tr-none' 
-                        : 'bg-slate-900/80 border border-slate-700 text-emerald-100 rounded-tl-none'
+                        ? 'bg-slate-700/50 text-white rounded-tr-none border-slate-600' 
+                        : 'bg-emerald-900/20 text-emerald-100 rounded-tl-none border-emerald-500/20 backdrop-blur-sm'
                     }`}>
                         {msg.message}
                     </div>
                 </div>
               </div>
             ))}
+            
+            {/* Dynamic Typing Indicator */}
             {isTyping && (
-              <div className="flex gap-3">
-                 <img src={getAvatar('Casino Host')} alt="AI" className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 shrink-0" />
-                 <div className="bg-slate-900/50 border border-slate-700 p-3 rounded-xl rounded-tl-none flex space-x-1 items-center h-10">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              <div className="flex gap-3 animate-fade-in">
+                 <img src={getAvatar('Casino Host')} alt="AI" className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 shrink-0" />
+                 <div className="bg-slate-800/50 border border-slate-700 p-3 rounded-2xl rounded-tl-none flex flex-col gap-1 min-w-[180px]">
+                    <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-widest animate-pulse">Ace is thinking...</span>
+                    </div>
+                    <div className="text-slate-400 text-xs font-mono pl-4 border-l-2 border-slate-600">
+                        {thinkingText}
+                        <span className="animate-pulse">_</span>
+                    </div>
                 </div>
               </div>
             )}
@@ -297,14 +339,21 @@ export const Chat: React.FC<ChatProps> = ({ userAvatar, username }) => {
       </div>
 
       {/* Input Area */}
-      <form onSubmit={handleSend} className="p-4 bg-slate-900 border-t border-slate-700">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={activeTab === 'global' ? "Message Global Lounge..." : "Ask for betting advice..."}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors placeholder-slate-500 text-sm"
-        />
+      <form onSubmit={handleSend} className="p-4 bg-slate-950 border-t border-slate-800 z-10">
+        <div className="relative">
+            <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={activeTab === 'global' ? "Type a message..." : "Ask Ace for advice..."}
+            className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-emerald-500 focus:bg-slate-900 transition-all placeholder-slate-600 text-xs font-medium pr-10 shadow-inner"
+            />
+            <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500 hover:text-emerald-400 p-1 transition-colors disabled:opacity-50" disabled={!input.trim()}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                    <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                </svg>
+            </button>
+        </div>
       </form>
     </div>
   );
