@@ -73,18 +73,11 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
     // Each slice is 360/37 degrees.
     // To land index `i` at the top (0 deg), the wheel must rotate `-(i * sliceAngle)`.
     // We add extra spins (5 full rotations) for effect.
-    // Note: We need to account for the previous rotation to ensure smooth transition
     
     const sliceAngle = 360 / 37;
     // Target angle to put the winner at 12 o'clock
     const targetAngleInWheel = randomIndex * sliceAngle;
     
-    // We want the final CSS rotation to be such that:
-    // (currentCSSRotation + delta) % 360  aligns with -targetAngleInWheel
-    // Actually simpler: We want the wheel to rotate so `winningNumber` is at top.
-    // If 0 is at top at 0deg. `winningNumber` is at `index * sliceAngle`.
-    // To bring `winningNumber` to top, we rotate `-index * sliceAngle`.
-    // Add randomness within the slice for realism (+/- half a slice)
     const fudge = (Math.random() * sliceAngle * 0.8) - (sliceAngle * 0.4);
     
     const extraSpins = 5 + Math.floor(Math.random() * 3);
@@ -179,19 +172,31 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
                 {WHEEL_NUMBERS.map((num, i) => {
                     const color = getNumberColor(num);
                     const fill = color === 'green' ? '#10b981' : color === 'red' ? '#ef4444' : '#1f2937';
+                    // Calculate precise text positioning
+                    // Slice Angle
+                    const angle = (i * 360) / 37; 
+                    const midAngle = angle + (180/37); // Middle of the slice
+                    const rads = (midAngle * Math.PI) / 180;
+                    
+                    // Text Position (radius 43 to be comfortably inside the 48 slice radius)
+                    const tx = 50 + 43 * Math.cos(rads);
+                    const ty = 50 + 43 * Math.sin(rads);
+                    
+                    // Text Rotation (perpendicular to radius) + 90 degrees
+                    const tRot = midAngle + 90;
+
                     return (
                         <g key={i}>
                             <path d={getSlicePath(i, 37, 48)} fill={fill} stroke="#0f172a" strokeWidth="0.2" />
-                            {/* Text positioning involves basic trig to place at rim of slice */}
                             <text
-                                x={50 + 42 * Math.cos(((i * 360 / 37) * Math.PI) / 180)}
-                                y={50 + 42 * Math.sin(((i * 360 / 37) * Math.PI) / 180)}
+                                x={tx}
+                                y={ty}
                                 fill="white"
-                                fontSize="3.5"
+                                fontSize="2.5" 
                                 fontWeight="bold"
                                 textAnchor="middle"
                                 dominantBaseline="middle"
-                                transform={`rotate(${i * (360/37)}, ${50 + 42 * Math.cos(((i * 360 / 37) * Math.PI) / 180)}, ${50 + 42 * Math.sin(((i * 360 / 37) * Math.PI) / 180)}) rotate(90, ${50 + 42 * Math.cos(((i * 360 / 37) * Math.PI) / 180)}, ${50 + 42 * Math.sin(((i * 360 / 37) * Math.PI) / 180)})`}
+                                transform={`rotate(${tRot}, ${tx}, ${ty})`}
                             >
                                 {num}
                             </text>

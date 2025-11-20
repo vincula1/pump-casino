@@ -49,8 +49,24 @@ const GameIcon: React.FC<{ type: string }> = ({ type }) => {
       );
     case GameType.ROULETTE:
       return (
-        <div className="w-24 h-24 rounded-full border-[8px] border-slate-800 relative shadow-xl animate-spin-slow bg-[conic-gradient(#10b981_0deg_20deg,#ef4444_20deg_180deg,#1f2937_180deg_360deg)]">
-           <div className="absolute inset-0 m-auto w-8 h-8 bg-gold-500 rounded-full border-2 border-white"></div>
+        <div className="relative w-24 h-24 flex items-center justify-center">
+           {/* Wheel Base */}
+           <div className="w-22 h-22 rounded-full border-4 border-gold-600 bg-slate-900 shadow-xl relative overflow-hidden animate-spin-slow">
+              <svg viewBox="0 0 100 100" className="w-full h-full">
+                {/* Simple sectors */}
+                <path d="M50 50 L50 0 A50 50 0 0 1 85 15 Z" fill="#ef4444" />
+                <path d="M50 50 L85 15 A50 50 0 0 1 100 50 Z" fill="#1f2937" />
+                <path d="M50 50 L100 50 A50 50 0 0 1 85 85 Z" fill="#ef4444" />
+                <path d="M50 50 L85 85 A50 50 0 0 1 50 100 Z" fill="#1f2937" />
+                <path d="M50 50 L50 100 A50 50 0 0 1 15 85 Z" fill="#ef4444" />
+                <path d="M50 50 L15 85 A50 50 0 0 1 0 50 Z" fill="#1f2937" />
+                <path d="M50 50 L0 50 A50 50 0 0 1 15 15 Z" fill="#ef4444" />
+                <path d="M50 50 L15 15 A50 50 0 0 1 50 0 Z" fill="#10b981" />
+                <circle cx="50" cy="50" r="20" fill="#0f172a" stroke="#fbbf24" strokeWidth="2" />
+              </svg>
+           </div>
+           {/* Center Ball/Hub */}
+           <div className="absolute w-3 h-3 bg-gold-400 rounded-full shadow-[0_0_10px_white]"></div>
         </div>
       );
     case GameType.CRASH:

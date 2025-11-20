@@ -288,19 +288,33 @@ const App: React.FC = () => {
 
       {currentGame ? (
         <div className="animate-fade-in">
-          <div className="flex items-center mb-8 border-b border-slate-800 pb-6">
-             <button 
-               onClick={() => setCurrentGame(null)}
-               className="flex items-center text-slate-400 hover:text-white mr-6 transition-all group bg-slate-900 px-4 py-2 rounded-full border border-slate-800 hover:border-slate-600"
-             >
-               <span className="mr-2 group-hover:-translate-x-1 transition-transform text-xl">←</span> 
-               <span className="font-bold text-sm uppercase tracking-wide">Lobby</span>
-             </button>
-             <div>
-                <h2 className={`text-3xl font-black tracking-tight ${GAME_CONFIGS[currentGame].color} drop-shadow-lg`}>
-                {currentGame.toUpperCase()}
-                </h2>
-                <p className="text-slate-500 text-sm font-medium">{GAME_CONFIGS[currentGame].description}</p>
+          <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-6">
+             <div className="flex items-center">
+                <button 
+                onClick={() => setCurrentGame(null)}
+                className="flex items-center text-slate-400 hover:text-white mr-6 transition-all group bg-slate-900 px-4 py-2 rounded-full border border-slate-800 hover:border-slate-600"
+                >
+                <span className="mr-2 group-hover:-translate-x-1 transition-transform text-xl">←</span> 
+                <span className="font-bold text-sm uppercase tracking-wide">Lobby</span>
+                </button>
+                <div>
+                    <div className="flex items-center gap-4">
+                        <h2 className={`text-3xl font-black tracking-tight ${GAME_CONFIGS[currentGame].color} drop-shadow-lg`}>
+                        {currentGame.toUpperCase()}
+                        </h2>
+                        {/* PLAYER COUNT BADGE */}
+                        <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800 shadow-inner">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-xs font-mono font-bold text-slate-300">
+                                {playerCounts[currentGame] || 1} Playing
+                            </span>
+                        </div>
+                    </div>
+                    <p className="text-slate-500 text-sm font-medium mt-1">{GAME_CONFIGS[currentGame].description}</p>
+                </div>
              </div>
           </div>
           {renderGame()}
