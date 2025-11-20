@@ -96,7 +96,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
         {/* Right Side Chat Column */}
         {user && (
           <aside className="w-80 border-l border-slate-800 bg-slate-900 flex flex-col shrink-0 shadow-2xl z-20">
-            <Chat userAvatar={user.avatarUrl} />
+            <Chat userAvatar={user.avatarUrl} username={formatAddress(user.username)} />
           </aside>
         )}
       </div>

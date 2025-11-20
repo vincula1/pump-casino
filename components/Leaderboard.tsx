@@ -12,6 +12,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
   const [data, setData] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const formatAddress = (addr: string) => {
+      if (addr.length < 10) return addr;
+      return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+  };
+
   useEffect(() => {
     const fetchLeaderboard = async () => {
         try {
@@ -20,7 +25,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
             // If entries are empty and we have a current user, show them at least
             if (entries.length === 0 && currentUser) {
                 setData([{
-                    username: currentUser.username,
+                    username: formatAddress(currentUser.username),
                     winnings: currentUser.balance,
                     rank: 1
                 }]);
@@ -28,9 +33,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
                 // Format addresses
                 const formatted = entries.map(e => ({
                     ...e,
-                    username: e.username === currentUser?.username 
-                        ? `${formatAddress(e.username)} (YOU)` 
-                        : formatAddress(e.username)
+                    username: formatAddress(e.username)
                 }));
                 setData(formatted);
             }
@@ -46,11 +49,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
     const interval = setInterval(fetchLeaderboard, 10000);
     return () => clearInterval(interval);
   }, [currentUser]); 
-
-  const formatAddress = (addr: string) => {
-      if (addr.length < 10) return addr;
-      return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
-  };
 
   return (
     <div className={`bg-slate-800/60 backdrop-blur-xl border border-slate-700 rounded-2xl overflow-hidden shadow-lg flex flex-col ${compact ? 'h-full' : 'h-[600px]'}`}>
@@ -78,7 +76,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ compact = false, curre
         ) : (
             <div className="space-y-1">
                 {data.map((entry) => {
-                const isUser = entry.username.includes("(YOU)");
+                const isUser = currentUser && entry.username === formatAddress(currentUser.username);
                 return (
                     <div 
                         key={entry.rank + entry.username}
