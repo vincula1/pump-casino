@@ -28,23 +28,8 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
     setAiCommentary('');
     playSound('click');
 
-    const duration = 2000;
-    const intervalTime = 100;
-    let elapsed = 0;
-
-    const interval = setInterval(() => {
-      playSound('spin');
-      setReels([
-        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
-      ]);
-      elapsed += intervalTime;
-      if (elapsed >= duration) {
-        clearInterval(interval);
-        finalizeSpin();
-      }
-    }, intervalTime);
+    // We will stop spinning after a delay, one reel at a time
+    setTimeout(() => finalizeSpin(), 2000);
   };
 
   const finalizeSpin = () => {
@@ -55,7 +40,9 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
     ];
     setReels(finalReels);
     setSpinning(false);
+    playSound('spin'); // Stop/Lock sound
 
+    // Logic
     if (finalReels[0] === finalReels[1] && finalReels[1] === finalReels[2]) {
       const winAmount = bet * 10;
       onEndGame(winAmount);
@@ -82,8 +69,8 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
       {/* Machine Chassis */}
       <div className="relative bg-gradient-to-b from-slate-800 via-slate-700 to-slate-900 p-8 rounded-t-[3rem] rounded-b-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] border-4 border-slate-600 border-b-8">
         {/* Lights */}
-        <div className="absolute top-4 left-8 w-4 h-4 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_red]"></div>
-        <div className="absolute top-4 right-8 w-4 h-4 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_lime] delay-75"></div>
+        <div className={`absolute top-4 left-8 w-4 h-4 rounded-full ${spinning ? 'bg-yellow-400 animate-ping' : 'bg-red-900'} shadow-[0_0_10px_red]`}></div>
+        <div className={`absolute top-4 right-8 w-4 h-4 rounded-full ${spinning ? 'bg-yellow-400 animate-ping' : 'bg-green-900'} shadow-[0_0_10px_lime] delay-75`}></div>
 
         <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 px-8 py-2 rounded-full border-2 border-gold-500 text-gold-400 text-sm tracking-[0.3em] font-black uppercase shadow-xl z-10">
             Golden Reels
@@ -102,12 +89,31 @@ export const Slots: React.FC<SlotsProps> = ({ onEndGame, balance }) => {
                {/* Reel texture */}
                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] opacity-50"></div>
                
-               <div className={`${spinning ? 'animate-pulse blur-[4px] translate-y-4 transition-transform duration-100' : 'transition-all duration-300 scale-100'} z-10 drop-shadow-md`}>
-                {symbol}
-              </div>
+               {spinning ? (
+                   // BLURRED SPINNING EFFECT
+                   <div className="flex flex-col gap-4 animate-slide-down blur-[2px]">
+                       {SYMBOLS.map((s, idx) => <div key={idx} className="h-40 flex items-center justify-center">{s}</div>)}
+                       {SYMBOLS.map((s, idx) => <div key={idx+'d'} className="h-40 flex items-center justify-center">{s}</div>)}
+                   </div>
+               ) : (
+                   // STATIC SYMBOL
+                   <div className="transition-all duration-300 scale-100 drop-shadow-md animate-slide-up">
+                    {symbol}
+                   </div>
+               )}
             </div>
           ))}
         </div>
+        
+        <style>{`
+            @keyframes slideDown {
+                0% { transform: translateY(-50%); }
+                100% { transform: translateY(0); }
+            }
+            .animate-slide-down {
+                animation: slideDown 0.2s linear infinite;
+            }
+        `}</style>
       </div>
 
       {/* Control Panel */}
