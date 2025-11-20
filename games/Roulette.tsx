@@ -150,14 +150,10 @@ export const Roulette: React.FC<RouletteProps> = ({ onEndGame, onGameEvent, bala
       {/* Realistic SVG Wheel */}
       <div className="relative w-[320px] h-[320px] md:w-[450px] md:h-[450px] mb-12 drop-shadow-2xl">
          
-         {/* Overlay for result - positioned relative to this container or full screen? 
-             The requirement was "on the screen". Let's put it over the wheel.
-         */}
+         {/* RESULT OVERLAY - Now correctly placed to float over the wheel without clipping */}
          {lastResult && (
              <div className="absolute inset-0 z-50 flex items-center justify-center">
-                 <div className="w-full h-full rounded-full overflow-hidden relative flex items-center justify-center">
-                    <ResultOverlay result={lastResult.status} amount={lastResult.amount} />
-                 </div>
+                 <ResultOverlay result={lastResult.status} amount={lastResult.amount} />
              </div>
          )}
 
