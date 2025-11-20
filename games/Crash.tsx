@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../components/ui/Button';
 import { generateHypeMessage } from '../services/geminiService';
 import { playSound } from '../services/audioService';
@@ -61,7 +61,10 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
 
   const startRunningPhase = () => {
       if (gameStateRef.current === 'running') return; 
+      
+      // IMPORTANT: Update both state and ref immediately to prevent race condition in loop()
       setGameState('running');
+      gameStateRef.current = 'running';
       
       const r = Math.random();
       const crash = Math.max(1.00, (0.99 / (1 - r)));
@@ -92,6 +95,8 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
       
       setMultiplier(finalValue);
       setGameState('crashed');
+      gameStateRef.current = 'crashed';
+      
       drawGraph(finalValue, 'crashed');
       setHistory(prev => [parseFloat(finalValue.toFixed(2)), ...prev].slice(0, 10));
       playSound('crash');
@@ -121,6 +126,7 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
 
       ctx.clearRect(0, 0, w, h);
 
+      // Grid lines
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -128,10 +134,12 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
       ctx.moveTo(0, 0); ctx.lineTo(0, h);
       ctx.stroke();
 
+      // Calculate curve
       const zoom = Math.max(1, current / 2); 
       const x = Math.min(w - 100, (current - 1) * 200 / zoom); 
       const y = h - Math.min(h - 50, (current - 1) * 100 / zoom);
       
+      // Draw Path
       ctx.beginPath();
       ctx.moveTo(0, h);
       ctx.quadraticCurveTo(x/2, h, x, y);
@@ -140,11 +148,13 @@ export const Crash: React.FC<CrashProps> = ({ onEndGame, balance }) => {
       ctx.lineWidth = 5;
       ctx.stroke();
 
+      // Fill Area
       ctx.lineTo(x, h);
       ctx.lineTo(0, h);
       ctx.fillStyle = state === 'crashed' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)';
       ctx.fill();
 
+      // Rocket / Explosion
       if (state !== 'crashed') {
           ctx.save();
           ctx.translate(x, y);

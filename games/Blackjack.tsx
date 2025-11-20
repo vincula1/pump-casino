@@ -23,6 +23,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
   const [payout, setPayout] = useState(0);
   const [aiCommentary, setAiCommentary] = useState('');
   const [deck, setDeck] = useState<Card[]>([]);
+  const [streak, setStreak] = useState(0);
 
   const createDeck = () => {
     const deck: Card[] = [];
@@ -87,6 +88,7 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
       setGameState('finished');
       setResultMessage('LOSE');
       setPayout(-bet);
+      setStreak(0); // Reset Streak
       playSound('lose');
       triggerAI("Busted.");
     }
@@ -118,19 +120,22 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
         setGameState('finished');
         if (dScore > 21 || pScore > dScore) {
           setResultMessage('WIN');
-          setPayout(bet * 2); // Total return (profit + stake) for visual simplicity, usually overlay shows profit
+          setPayout(bet * 2); 
+          setStreak(s => s + 1); // Increment Streak
           onEndGame(bet * 2);
           playSound('win');
           triggerAI("Player wins hand.");
         } else if (pScore === dScore) {
           setResultMessage('PUSH');
           setPayout(bet);
+          setStreak(0); // Reset Streak
           onEndGame(bet);
           playSound('click');
           triggerAI("Push. Money back.");
         } else {
           setResultMessage('LOSE');
           setPayout(-bet);
+          setStreak(0); // Reset Streak
           playSound('lose');
           triggerAI("House wins.");
         }
@@ -191,15 +196,25 @@ export const Blackjack: React.FC<BlackjackProps> = ({ onEndGame, balance }) => {
 
           {/* TOP STATUS BAR */}
           <div className="absolute top-0 left-0 right-0 h-16 bg-black/20 backdrop-blur flex items-center justify-between px-8 border-b border-emerald-800/30">
-               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Blackjack Pays 3:2</div>
+               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest hidden md:block">Blackjack Pays 3:2</div>
                
-               {gameState !== 'betting' && (
-                   <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-wider animate-fade-in bg-black/40 text-white`}>
-                       {gameState === 'finished' ? 'ROUND OVER' : gameState === 'dealerTurn' ? "DEALER'S TURN" : "YOUR TURN"}
-                   </div>
-               )}
+               <div className="flex items-center gap-4">
+                  {gameState !== 'betting' && (
+                      <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-wider animate-fade-in bg-black/40 text-white`}>
+                          {gameState === 'finished' ? 'ROUND OVER' : gameState === 'dealerTurn' ? "DEALER'S TURN" : "YOUR TURN"}
+                      </div>
+                  )}
+                  
+                  {/* STREAK INDICATOR */}
+                  {streak > 0 && (
+                    <div className="flex items-center gap-1 animate-bounce bg-orange-500/20 border border-orange-500/50 px-3 py-1 rounded-full">
+                      <span className="text-lg">🔥</span>
+                      <span className="text-orange-400 font-black font-mono">{streak}</span>
+                    </div>
+                  )}
+               </div>
 
-               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest">Dealer stands on 17</div>
+               <div className="text-emerald-400/70 font-bold text-xs uppercase tracking-widest hidden md:block">Dealer stands on 17</div>
           </div>
 
           {/* Dealer Area */}
